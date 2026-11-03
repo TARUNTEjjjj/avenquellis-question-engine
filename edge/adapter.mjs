@@ -19,13 +19,22 @@ function wellFormed(text) {
 }
 
 export function createNativeGenerator(module) {
-  // Standalone Emscripten reactor. No filesystem, network or clock is available
-  // to the math core. libc++'s unused I/O routines return WASI errno BADF.
-  const badFd=()=>8;
-  const wasi={fd_close:badFd,fd_write:badFd,fd_read:badFd,fd_seek:badFd,fd_fdstat_get:badFd,
-    environ_sizes_get:()=>0,environ_get:()=>0,proc_exit:()=>{throw Error('Unexpected native exit.');}};
-  const instance=new WebAssembly.Instance(module,{wasi_snapshot_preview1:wasi,env:{emscripten_notify_memory_growth:()=>{}}});
+  // Emscripten libc++ may inspect the process environment while initializing.
+  // Supply an empty WASI environment. The reactor never owns host descriptors.
+  let memory;
+  const wasi={
+    fd_close:()=>8, // WASI BADF
+    environ_sizes_get:(entries, bytes)=>{
+      const view=new DataView(memory.buffer);
+      view.setUint32(entries,0,true);
+      view.setUint32(bytes,0,true);
+      return 0;
+    },
+    environ_get:()=>0
+  };
+  const instance=new WebAssembly.Instance(module,{wasi_snapshot_preview1:wasi});
   const abi=instance.exports;
+  memory=abi.memory;
   abi._initialize();
   if(abi.veyra_abi_version()!==1)throw Error('Unsupported native generator ABI.');
   function invoke(op,fields) {
