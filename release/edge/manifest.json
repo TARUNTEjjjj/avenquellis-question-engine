@@ -1,0 +1,27 @@
+{
+  "component": "Veyra Math question engine",
+  "abi": 1,
+  "sourceCommit": "25f1e0a0e488ecac56bbf33c15bcee95c89989e2",
+  "toolchain": "Emscripten 6.0.13",
+  "wasm": "veyra-questions.wasm",
+  "bytes": 237033,
+  "sha256": "e473e36d6afadd2b28fa4b2a59e36c1959f9be356b23d2bc9d841bf1adf44993",
+  "adapterSha256": "8ee3cd4e6e38833ab15f76801b1ce46c2f45571bab46585bbe69ffd273d96bdc",
+  "imports": [
+    {
+      "module": "wasi_snapshot_preview1",
+      "name": "fd_close",
+      "kind": "function"
+    },
+    {
+      "module": "wasi_snapshot_preview1",
+      "name": "environ_sizes_get",
+      "kind": "function"
+    },
+    {
+      "module": "wasi_snapshot_preview1",
+      "name": "environ_get",
+      "kind": "function"
+    }
+  ]
+}

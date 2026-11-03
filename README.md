@@ -60,7 +60,13 @@ The native tests exercise solutions, rubrics, exhaustive counting oracles, refer
 
 The production service runs this same C++ catalog as a server-side WebAssembly reactor. The JavaScript adapter validates input, copies bounded UTF-8 fields into linear memory and reads the returned JSON. Native code performs seed hashing, template selection, variation, rubric construction, mock assembly and authoritative saved-reference lookup.
 
-Build with the pinned Emscripten 6.0.13 SDK and verify the resulting bytes against the existing API.
+A complete, pinned distribution is checked in under [release/edge](release/edge/manifest.json). Verify it without installing a compiler.
+
+```sh
+node edge/verify.mjs release/edge
+```
+
+To build a fresh module from source, use the pinned Emscripten 6.0.13 SDK and verify it against the existing API.
 
 ```sh
 EMXX=/path/to/emsdk/upstream/emscripten/em++ bash scripts/build-edge.sh build-edge
