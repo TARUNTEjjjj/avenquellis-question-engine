@@ -56,6 +56,21 @@ target_link_libraries(my_program PRIVATE NoetherQuestions::questions)
 
 The native tests exercise solutions, rubrics, exhaustive counting oracles, reference validation, duplicate prevention and the installed CMake package. When Node is present, CTest also compares the entire bank, variants from every family, Unicode seeds, chapter tests and full mocks against the JavaScript API. Mathematical content changes should update both implementations and pass the parity check. Every generated suggestion remains original practice, and the bounded family space limits novelty.
 
+## Cloudflare Pages generator
+
+The production service runs this same C++ catalog as a server-side WebAssembly reactor. The JavaScript adapter validates input, copies bounded UTF-8 fields into linear memory and reads the returned JSON. Native code performs seed hashing, template selection, variation, rubric construction, mock assembly and authoritative saved-reference lookup.
+
+Build with the pinned Emscripten 6.0.13 SDK and verify the resulting bytes against the existing API.
+
+```sh
+EMXX=/path/to/emsdk/upstream/emscripten/em++ bash scripts/build-edge.sh build-edge
+node edge/verify.mjs build-edge
+```
+
+The build writes `veyra-questions.wasm`, `adapter.mjs` and `manifest.json` with the exact source commit, compiler, ABI version, byte length, SHA-256 checksums and module imports. CI uploads the verified set together. The Pages deployment imports the WASM module at build time and instantiates it once per isolate. Each invocation copies a complete input and output synchronously. The reactor has a fixed 8 MiB memory and a 4 KiB input buffer, and the adapter rejects outputs above 1 MiB. Impossible finite-pool requests are rejected before generating candidates.
+
+The web API accepts `POST /api/generate` with a JSON object. Set `mode` to `question`, `chapter` or `mock` and add the practice options below. A successful response contains `engine: "cpp-wasm"` and the original question or mock schema under `result`. The separate Node service remains available for JavaScript integrations.
+
 ## Run the JavaScript HTTP service
 
 Requires Node.js 20 or newer. Question generation and `npm test` need no installation. The separate `npm run test:all` suite additionally requires the built WASM artifact and a C++20 compiler; see [the build guide](docs/exact-math.md).

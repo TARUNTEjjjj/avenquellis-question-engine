@@ -28,6 +28,8 @@ struct Content {
 
 struct Family {
     std::string_view id, topic, difficulty, type, title;
+    // Product of the finite parameter-domain sizes (one for a fixed theorem).
+    int max_variants;
     Content (*make)(Random&);
 };
 

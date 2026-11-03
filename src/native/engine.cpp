@@ -235,6 +235,10 @@ Mock generate_mock(const Options& options, int count) {
     if (count < 1 || count > 30) throw std::invalid_argument("Mock count must be between 1 and 30.");
     const Options o = normalized(options);
     const auto all = matching(o);
+    int capacity = 0;
+    for (const auto* family : all) capacity += family->max_variants;
+    if (count > capacity)
+        throw std::length_error("At most " + std::to_string(capacity) + " distinct statements exist in this selection. Reduce count or select mixed topics.");
     const auto seed = seed_text(o.seed);
     Random r(seed);
     std::vector<const Family*> pool;

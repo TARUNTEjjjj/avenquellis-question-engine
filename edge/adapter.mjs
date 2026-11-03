@@ -50,7 +50,7 @@ export function createNativeGenerator(module) {
   }
   return {
     generate(options) {
-      if(!record(options)||Object.keys(options).some(k=>!optionKeys.has(k))||!Object.hasOwn(modes,options.mode))
+      if(!record(options)||Object.keys(options).some(k=>!optionKeys.has(k))||typeof options.mode!=='string'||!Object.hasOwn(modes,options.mode))
         fail('Use question, chapter or mock mode with supported fields.');
       const seed=options.seed===undefined?1:options.seed,count=options.count===undefined?6:options.count;
       if(typeof seed==='string' ? seed.length>249||!wellFormed(seed) : !Number.isSafeInteger(seed))fail('Use a valid text seed or a safe integer.');
