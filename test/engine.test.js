@@ -9,8 +9,8 @@ test('generation is deterministic and mock IDs account for configuration',()=>{
  assert.notEqual(generateMock({seed:42,count:3}).id,generateMock({seed:42,count:4}).id);
 });
 test('all templates carry balanced rubrics, valid metadata and honest provenance',()=>{
- assert.equal(questionBank.length,24);
- for(const topic of topics) assert.equal(questionBank.filter(q=>q.topic===topic).length,4);
+ assert.equal(questionBank.length,48);
+ for(const topic of topics) assert.equal(questionBank.filter(q=>q.topic===topic).length,8);
  for(const q of questionBank){
   assert.equal(q.rubric.reduce((s,c)=>s+c.points,0),q.maxMarks);
   assert.equal(q.source.kind,'original');
@@ -30,7 +30,7 @@ test('invalid requests fail early',()=>{
 });
 test('numeric answers satisfy independent computations across 200 seeds',()=>{
  const seen=new Set();
- for(let seed=0;seed<200;seed++) for(const q of generateMock({count:24,seed}).questions){
+ for(let seed=0;seed<200;seed++) for(const q of [...generateMock({count:30,seed}).questions,...questionBank]){
   const p=q.parameters;seen.add(q.templateId);
   if(q.templateId==='number-cycle') {let n=1;for(let i=0;i<p.n;i++) n=(n*2)%7;assert.equal(q.answer,n);}
   if(q.templateId==='comb-paths') {const dp=Array.from({length:p.m+1},()=>Array(p.n+1).fill(1));for(let x=1;x<=p.m;x++)for(let y=1;y<=p.n;y++)dp[x][y]=dp[x-1][y]+dp[x][y-1];assert.equal(q.answer,dp[p.m][p.n]);}
@@ -41,7 +41,7 @@ test('numeric answers satisfy independent computations across 200 seeds',()=>{
   if(q.templateId==='number-consecutive')for(let n=-30;n<=30;n++)assert.equal(Math.abs(((n+p.k)*(n+p.k+1)*(n+p.k+2))%6),0);
   if(q.templateId==='probability-bayes') {let numerator=0,denominator=0;for(let i=1;i<2**p.n;i++){denominator++;if((i&(i-1))===0)numerator++;}const[a,b='1']=String(q.answer).split('/');assert.equal(Number(a)*denominator,Number(b)*numerator);}
  }
- assert.equal(seen.size,24);
+ assert.equal(seen.size,48);
 });
 test('HTTP API generates mocks and rejects malformed inputs',async()=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -66,8 +66,22 @@ test('mock assembly excludes duplicate statements and remains deterministic',()=
   assert.match(result.notice,/Difficulty is a preference/);
  }
 });
-test('exhausted finite statement domains fail clearly without unbounded retries',()=>{
- assert.throws(()=>generateMock({topic:'calculus',count:27,seed:42}),/at most 26 distinct/);
- const mock=generateMock({topic:'calculus',count:26,seed:42});
- assert.equal(new Set(mock.questions.map(q=>q.statement)).size,26);
+test('expanded calculus templates support thirty distinct statements',()=>{
+ const mock=generateMock({topic:'calculus',count:30,seed:42});
+ assert.equal(new Set(mock.questions.map(q=>q.statement)).size,30);
+});
+test('proof-only and numeric-only selection use the requested format',()=>{
+ for(const type of ['proof','numeric']) {
+  const q=generateQuestion({exam:'ISI',type,seed:42});assert.equal(q.type,type);
+  const m=generateMock({exam:'CMI',type,count:12,seed:42});assert.ok(m.questions.every(q=>q.type===type));assert.equal(m.type,type);
+ }
+ for(const type of [undefined,'all','proof'])assert.ok(generateMock({exam:'RMO',type,count:12,seed:42}).questions.every(q=>q.type==='proof'));
+ assert.throws(()=>generateQuestion({exam:'RMO',type:'numeric'}),/proof questions/);
+ assert.throws(()=>generateMock({exam:'RMO',type:'numeric'}),/proof questions/);
+ assert.throws(()=>generateMock({type:'invalid'}),/Unknown question type/);
+});
+test('gcd rubric rewards both common-divisor implications more than the conclusion',()=>{
+ const q=questionBank.find(q=>q.templateId==='number-gcd');
+ assert.deepEqual(q.rubric.map(c=>c.points),[4,4,2]);
+ assert.match(q.rubric[0].description,/divisor/);assert.match(q.rubric[1].description,/converse/);
 });

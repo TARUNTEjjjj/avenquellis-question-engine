@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/TARUNTEjjjj/axiom-math",
+  "commit": "ae5b38257b7825db603ecd5c7b28ade32c1a613f",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 Tarun Tej",
+  "modifications": "None. All listed upstream files are byte-for-byte copies. Browser adaptation lives outside this directory.",
+  "files": {
+    "LICENSE": "56aa8679442ed207fc8585d6600da04e2c5ede2995206104a09a8af477c97491",
+    "README.md": "0cfa1b106d275d635c2387c417d52213fdf55bff150522ecbac6a1fdeb31bc89",
+    "include/axiom/math/expression.hpp": "720ee8e1153f6916056fc0576351025b6243bd696fac2c4862dc7d1952ec43c8",
+    "include/axiom/math/rational.hpp": "2ece421c9b2fcda2ce9d96afe3f1e0766caced2c868d103f2bd65c9ed61e63d1",
+    "src/expression.cpp": "78c66b1eeb92cb8b8e57609ae008d852cb0d6561a5ead4c5025a38eed7c156a5",
+    "src/rational.cpp": "a011f0a406c348a1d6e1130fca4260c74cb55324945aa686fb7510269dc4683c",
+    "tests/oracle.py": "3395380450e7ee701e833da521e150f29e3d558e1e2e0a0b4bb93449607e7f10",
+    "tests/test_math.cpp": "35235995938ff53164073b35efc110d01abee0cb8f79f50efa2479a05ef49001",
+    "tests/wide_oracle.py": "05e7e03ee14ae4c6bcbf9ff4fbe5cc99ea1813091ec8464fef4fbd6aa2431ed5"
+  }
+}
