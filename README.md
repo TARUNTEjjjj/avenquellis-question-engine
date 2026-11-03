@@ -1,8 +1,62 @@
 # Noether Question Engine
 
-A dependency-free mathematics practice engine for the Noether preparation website. It generates original wording and worked solutions from **48 finite, deterministic mathematical templates**, with six topics and reproducible seeds. This is a working template engine, not a trained generative model. Difficulty labels are author estimates and have not been calibrated against actual candidates.
+A C++20 library and command-line tool for generating CMI, ISI and RMO practice. It includes **48 authored mathematical families across six topics**. Thirty-nine families generate proof questions and nine generate numeric questions. Each question has a worked solution, a ten-point rubric, provenance and a seed for replay. The browser-compatible JavaScript implementation serves the same bank and produces the same seeded variants. Difficulty labels are author estimates.
 
-## Run
+## Build the native backend
+
+CMake 3.20+, a C++20 compiler and a native build tool such as Make or Ninja are sufficient. The native library and CLI build from the checkout without downloads. Node.js 20+ enables an additional browser parity test.
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+./build/noether-questions --help
+```
+
+The CLI prints UTF-8 JSON. Invalid options and exhausted variant pools produce an error on stderr and exit code 2.
+
+```sh
+# The complete bank, or one known bank proof.
+./build/noether-questions bank
+./build/noether-questions get number-gcd-17s23lf
+
+# One seeded proof, a chapter test, and a mixed mock.
+./build/noether-questions question --topic algebra --type proof --exam ISI --seed week-1
+./build/noether-questions chapter --topic number-theory --exam RMO --count 12 --seed-number 42
+./build/noether-questions mock --exam CMI --difficulty olympiad --count 18 --seed practice-A
+
+# Reproduce a variant from a returned templateId and generator.seed.
+./build/noether-questions replay --family number-gcd --variant-seed week-1:variant --exam ISI --difficulty advanced
+```
+
+`--seed` accepts a valid UTF-8 string up to 240 bytes. `--seed-number` accepts a JavaScript-safe integer. The two types are preserved when calculating mock IDs. Each family supplies deterministic draws and computes its own parameters, text, proof and numeric answer where applicable. Chapter generation takes a single topic. Mock generation supports 1–30 questions and rejects requests that exhaust the selected finite pool.
+
+## Link the C++ library
+
+```cpp
+#include <noether/questions.hpp>
+
+noether::questions::Options options;
+options.exam = "RMO";
+options.topic = "number-theory";
+options.seed = "week-1";
+auto test = noether::questions::generate_chapter(options, 6);
+const auto& proof = test.questions.front();
+auto json = noether::questions::to_json(proof);
+```
+
+Use `cmake --install build --prefix /path/to/prefix` and point the consuming project’s `CMAKE_PREFIX_PATH` at that prefix. Link the imported target as follows.
+
+```cmake
+find_package(NoetherQuestions 0.1 CONFIG REQUIRED)
+target_link_libraries(my_program PRIVATE NoetherQuestions::questions)
+```
+
+`bank()` returns one stable edition per family. `generate_question`, `generate_mock` and `generate_chapter` accept typed options. `resolve_reference` reconstructs a question from a bank ID or a generated ID plus template ID, seed, exam and requested difficulty. Invalid or mismatched references return an empty optional. This lets a grading backend reconstruct a trusted solution and rubric. The lower-level `replay` function materializes a named family with a supplied variant seed. A small consuming application is included in [examples/chapter.cpp](examples/chapter.cpp).
+
+The native tests exercise solutions, rubrics, exhaustive counting oracles, reference validation, duplicate prevention and the installed CMake package. When Node is present, CTest also compares the entire bank, variants from every family, Unicode seeds, chapter tests and full mocks against the JavaScript API. Mathematical content changes should update both implementations and pass the parity check. Every generated suggestion remains original practice, and the bounded family space limits novelty.
+
+## Run the JavaScript HTTP service
 
 Requires Node.js 20 or newer. Question generation and `npm test` need no installation. The separate `npm run test:all` suite additionally requires the built WASM artifact and a C++20 compiler; see [the build guide](docs/exact-math.md).
 
@@ -11,7 +65,7 @@ npm test
 npm start
 ```
 
-The local API listens at `http://127.0.0.1:4101`. Set `PORT` to change the port. It is intended for local integration; production needs authentication, rate limits, and server-side answer storage.
+The local API listens at `http://127.0.0.1:4101`. Set `PORT` to change the port. It is intended for local integration. Production needs authentication, rate limits, and server-side answer storage.
 
 ## JavaScript integration
 

@@ -7,3 +7,5 @@ browser/axiom-math-runtime.js
 browser/axiom-math-runtime.wasm
 browser/build-info.json
 browser/source-commit.txt
+
+/build*/

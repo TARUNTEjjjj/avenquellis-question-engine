@@ -1,0 +1,23 @@
+name: Native question generator
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNOETHER_WARNINGS_AS_ERRORS=ON
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure
+      - if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DNOETHER_SANITIZERS=ON
+          cmake --build build-asan --parallel
+          ctest --test-dir build-asan --output-on-failure -R native-library
