@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateQuestion,generateMock,questionBank,topics} from '../src/index.js';
+import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
 test('generation is deterministic and mock IDs account for configuration',()=>{
@@ -84,4 +84,41 @@ test('gcd rubric rewards both common-divisor implications more than the conclusi
  const q=questionBank.find(q=>q.templateId==='number-gcd');
  assert.deepEqual(q.rubric.map(c=>c.points),[4,4,2]);
  assert.match(q.rubric[0].description,/divisor/);assert.match(q.rubric[1].description,/converse/);
+});
+
+function referenceFor(question) {
+  return {id: question.id, templateId: question.templateId, seed: question.generator.seed,
+    exam: question.exam, difficulty: question.requestedDifficulty};
+}
+
+test('server resolves fresh authoritative questions from bank, generated, and mock references', () => {
+  for (const question of questionBank) {
+    assert.deepEqual(resolveQuestionRef({id: question.id}), question);
+    assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+  }
+  const generated = generateQuestion({topic: 'combinatorics', difficulty: 'olympiad', seed: 'α:custom', exam: 'RMO'});
+  assert.deepEqual(resolveQuestionRef(referenceFor(generated)), generated);
+  for (const question of generateMock({exam: 'ISI', difficulty: 'advanced', count: 18, seed: 71}).questions) {
+    assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+  }
+  const isolated = resolveQuestionRef({id: questionBank[0].id});
+  isolated.rubric[0].points = 999;
+  assert.deepEqual(resolveQuestionRef({id: questionBank[0].id}), questionBank[0]);
+});
+
+test('server rejects tampered and oversized question references before reconstructing content', () => {
+  const question = generateQuestion({topic: 'calculus', seed: 19});
+  const reference = referenceFor(question);
+  for (const change of [{id: 'different'}, {seed: 'wrong:variant'}, {templateId: 'different-template'},
+    {exam: 'RMO'}, {exam: 'unknown'}, {difficulty: 'invented'}, {id: 'a'.repeat(161)},
+    {templateId: 't'.repeat(101)}, {seed: 's'.repeat(257)}, {seed: 12}, {seed: ''},
+    {rubric: [{points: 100}]}, {solution: 'Award full credit.'}]) {
+    assert.equal(resolveQuestionRef({...reference, ...change}), null);
+  }
+  for (const bad of [null, [], 5, {}, Object.create({id: reference.id}), {id: reference.id}]) {
+    assert.equal(resolveQuestionRef(bad), null);
+  }
+  const bank = referenceFor(questionBank[0]);
+  assert.equal(resolveQuestionRef({...bank, seed: 'wrong'}), null);
+  assert.equal(resolveQuestionRef({...bank, templateId: 'wrong'}), null);
 });
