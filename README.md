@@ -4,7 +4,7 @@ A dependency-free mathematics practice engine for the Noether preparation websit
 
 ## Run
 
-Requires Node.js 20 or newer. Question generation needs no installation. Exact arithmetic tests additionally require the built WASM artifact and a C++20 compiler; see [the build guide](docs/exact-math.md).
+Requires Node.js 20 or newer. Question generation and `npm test` need no installation. The separate `npm run test:all` suite additionally requires the built WASM artifact and a C++20 compiler; see [the build guide](docs/exact-math.md).
 
 ```sh
 npm test

@@ -1,6 +1,16 @@
 name: Build and verify exact C++ WebAssembly
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "cpp/**"
+      - "vendor/axiom-math/**"
+      - "browser/exact-math.js"
+      - "scripts/build-exact.mjs"
+      - "test/exact-math.test.mjs"
+      - "package.json"
+      - ".github/workflows/build-exact.yml"
   pull_request:
     branches: [main]
 permissions:
@@ -29,7 +39,7 @@ jobs:
       - name: Verify generation and actual WASM against native C++ and BigInt oracles
         env:
           AXIOM_BUILD_DIR: ${{ runner.temp }}/axiom-build
-        run: npm test
+        run: npm run test:all
       - name: Record exact repository commit
         run: git rev-parse HEAD > browser/source-commit.txt
       - name: Upload verified complete browser module

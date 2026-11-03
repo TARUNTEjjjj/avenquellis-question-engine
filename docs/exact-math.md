@@ -31,10 +31,10 @@ cd work/emsdk
 ./emsdk activate 6.0.13
 cd ../..
 node scripts/build-exact.mjs --emsdk work/emsdk --build-dir work/exact-build
-npm test
+npm run test:all
 ```
 
-For systems where Python on PATH is too old, pass `--python /absolute/path/to/python3` to the build script. Native-only verification is available with `--native-only`. The build outputs `axiom-math-runtime.js`, `axiom-math-runtime.wasm`, the MIT notice, and `build-info.json` including hashes. Generated artifacts are not committed; CI attaches the verified complete browser directory as `axiom-exact-math-browser`. The [workflow](../.github/workflows/build-exact.yml) uses pinned action and emsdk commits and can be triggered manually or by a pull request.
+For systems where Python on PATH is too old, pass `--python /absolute/path/to/python3` to the build script. Native-only verification is available with `--native-only`. The build outputs `axiom-math-runtime.js`, `axiom-math-runtime.wasm`, the MIT notice, and `build-info.json` including hashes. Generated artifacts are not committed; CI attaches the verified complete browser directory as `axiom-exact-math-browser`. The [workflow](../.github/workflows/build-exact.yml) uses pinned action and emsdk commits and runs on relevant main-branch changes or a pull request, and can also be triggered manually. On a fresh clone, `npm test` runs the generator checks without requiring a prebuilt WASM module. After building or restoring the artifact, `npm run test:all` runs both suites.
 
 The build uses Emscripten's supported [modular ES-module factory](https://emscripten.org/docs/compiling/Modularized-Output.html), `-fexceptions` to preserve C++ error handling, and `DYNAMIC_EXECUTION=0`. A site using Content Security Policy must allow WebAssembly compilation (typically `script-src 'self' 'wasm-unsafe-eval'`) and the local module URL.
 
