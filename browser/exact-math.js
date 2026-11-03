@@ -27,9 +27,9 @@ function prepare(value){
   return {length};
 }
 function invoke(name,args,types){
-  if(!moduleInstance)return {ok:false,error:'Exact engine is not ready. Await initExactMath() first.'};
+  if(!moduleInstance)return {ok:false,code:'engine_unavailable',error:'Exact engine is not ready. Await initExactMath() first.'};
   try{return JSON.parse(moduleInstance.ccall(name,'string',types,args));}
-  catch{return {ok:false,error:'The exact arithmetic engine could not complete this request.'};}
+  catch{return {ok:false,code:'engine_unavailable',error:'The exact arithmetic engine could not complete this request.'};}
 }
 /** Synchronous after initialization; value is an exact reduced fraction string. */
 export function evaluateExact(expression){

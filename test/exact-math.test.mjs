@@ -72,3 +72,10 @@ test('concurrent initialization shares one module and repeated operations retain
  const infos=await Promise.all([initExactMath(),initExactMath(),initExactMath()]);assert.ok(infos.every(info=>info===exactMathInfo));
  for(let i=0;i<2000;i++)assert.equal(checkExact('1/3+1/6','1/2').equivalent,true);
 });
+test('engine availability failures are distinguished from invalid arithmetic input',async()=>{
+ const fresh=await import('../browser/exact-math.js?uninitialized-test');
+ assert.equal(fresh.evaluateExact('1+1').code,'engine_unavailable');
+ assert.equal(fresh.checkExact('1','1').code,'engine_unavailable');
+ assert.equal(evaluateExact('1/0').code,undefined);
+ assert.equal(evaluateExact('1/0').ok,false);
+});
