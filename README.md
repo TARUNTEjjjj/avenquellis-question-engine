@@ -34,23 +34,25 @@ The installed CLI is `avenquellis-questions`. The original `noether-questions` e
 ## Link the C++ library
 
 ```cpp
-#include <noether/questions.hpp>
+#include <avenquellis/questions.hpp>
 
-noether::questions::Options options;
+avenquellis::questions::Options options;
 options.exam = "RMO";
 options.topic = "number-theory";
 options.seed = "week-1";
-auto test = noether::questions::generate_chapter(options, 6);
+auto test = avenquellis::questions::generate_chapter(options, 6);
 const auto& proof = test.questions.front();
-auto json = noether::questions::to_json(proof);
+auto json = avenquellis::questions::to_json(proof);
 ```
 
 Use `cmake --install build --prefix /path/to/prefix` and point the consuming project’s `CMAKE_PREFIX_PATH` at that prefix. Link the imported target as follows.
 
 ```cmake
-find_package(NoetherQuestions 0.1 CONFIG REQUIRED)
-target_link_libraries(my_program PRIVATE NoetherQuestions::questions)
+find_package(AvenquellisQuestions 0.1 CONFIG REQUIRED)
+target_link_libraries(my_program PRIVATE AvenquellisQuestions::questions)
 ```
+
+The original `NoetherQuestions::questions` package target, `<noether/questions.hpp>` header and `noether::questions` namespace remain available for existing consumers. Both names link the same library.
 
 `bank()` returns one stable edition per family. `generate_question`, `generate_mock` and `generate_chapter` accept typed options. `resolve_reference` reconstructs a question from a bank ID or a generated ID plus template ID, seed, exam and requested difficulty. Invalid or mismatched references return an empty optional. This lets a grading backend reconstruct a trusted solution and rubric. The lower-level `replay` function materializes a named family with a supplied variant seed. A small consuming application is included in [examples/chapter.cpp](examples/chapter.cpp).
 

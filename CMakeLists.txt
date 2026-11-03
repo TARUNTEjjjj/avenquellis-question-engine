@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(NoetherQuestions VERSION 0.1.0 LANGUAGES CXX)
+project(AvenquellisQuestions VERSION 0.1.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(CTest)
@@ -23,6 +23,7 @@ function(noether_check_target target)
 endfunction()
 
 add_library(noether_questions src/native/catalog.cpp src/native/engine.cpp src/native/json.cpp)
+add_library(AvenquellisQuestions::questions ALIAS noether_questions)
 add_library(NoetherQuestions::questions ALIAS noether_questions)
 set_target_properties(noether_questions PROPERTIES EXPORT_NAME questions)
 target_include_directories(noether_questions PUBLIC
@@ -32,7 +33,7 @@ noether_check_target(noether_questions)
 
 foreach(cli IN ITEMS avenquellis-questions noether-questions)
     add_executable(${cli} app/main.cpp)
-    target_link_libraries(${cli} PRIVATE NoetherQuestions::questions)
+    target_link_libraries(${cli} PRIVATE AvenquellisQuestions::questions)
     noether_check_target(${cli})
 endforeach()
 if(BUILD_SHARED_LIBS AND UNIX)
@@ -46,7 +47,7 @@ endif()
 
 if(BUILD_TESTING)
     add_executable(noether-native-tests test/native.cpp)
-    target_link_libraries(noether-native-tests PRIVATE NoetherQuestions::questions)
+    target_link_libraries(noether-native-tests PRIVATE AvenquellisQuestions::questions)
     noether_check_target(noether-native-tests)
     add_test(NAME native-library COMMAND noether-native-tests)
     add_test(NAME cli-help COMMAND avenquellis-questions --help)
@@ -68,11 +69,15 @@ install(TARGETS noether_questions avenquellis-questions noether-questions EXPORT
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-set(package_dir "${CMAKE_INSTALL_LIBDIR}/cmake/NoetherQuestions")
-install(EXPORT NoetherQuestionsTargets NAMESPACE NoetherQuestions:: DESTINATION "${package_dir}")
-configure_package_config_file(cmake/NoetherQuestionsConfig.cmake.in
-    "${CMAKE_CURRENT_BINARY_DIR}/NoetherQuestionsConfig.cmake" INSTALL_DESTINATION "${package_dir}")
-write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/NoetherQuestionsConfigVersion.cmake"
-    VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/NoetherQuestionsConfig.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/NoetherQuestionsConfigVersion.cmake" DESTINATION "${package_dir}")
+install(EXPORT NoetherQuestionsTargets NAMESPACE NoetherQuestions::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/NoetherQuestions")
+# Both package configs load the same exported target and library file.
+foreach(package IN ITEMS AvenquellisQuestions NoetherQuestions)
+    set(package_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${package}")
+    configure_package_config_file("cmake/${package}Config.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/${package}Config.cmake" INSTALL_DESTINATION "${package_dir}")
+    write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/${package}ConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${package}Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/${package}ConfigVersion.cmake" DESTINATION "${package_dir}")
+endforeach()

@@ -10,7 +10,9 @@ file(REMOVE_RECURSE "${prefix}" "${consumer}")
 check("${CMAKE_COMMAND}" --install "${BUILD}" --prefix "${prefix}" --config "${CONFIG}")
 check("${prefix}/${BINDIR}/noether-questions" --help)
 check("${prefix}/${BINDIR}/avenquellis-questions" chapter --topic algebra --count 2)
-check("${CMAKE_COMMAND}" -S "${SOURCE}/test/consumer" -B "${consumer}" "-DCMAKE_PREFIX_PATH=${prefix}"
-    "-DCMAKE_CXX_COMPILER=${COMPILER}" "-DEXAMPLE_SOURCE=${SOURCE}/examples/chapter.cpp")
-check("${CMAKE_COMMAND}" --build "${consumer}" --config "${CONFIG}")
-check("${CMAKE_CTEST_COMMAND}" --test-dir "${consumer}" --output-on-failure -C "${CONFIG}")
+foreach(mode IN ITEMS canonical legacy)
+    check("${CMAKE_COMMAND}" -S "${SOURCE}/test/consumer" -B "${consumer}/${mode}" "-DCMAKE_PREFIX_PATH=${prefix}"
+        "-DCMAKE_CXX_COMPILER=${COMPILER}" "-DMODE=${mode}" "-DEXAMPLE_SOURCE=${SOURCE}/examples/chapter.cpp")
+    check("${CMAKE_COMMAND}" --build "${consumer}/${mode}" --config "${CONFIG}")
+    check("${CMAKE_CTEST_COMMAND}" --test-dir "${consumer}/${mode}" --output-on-failure -C "${CONFIG}")
+endforeach()
