@@ -32,7 +32,7 @@ namespace noether::questions {
 namespace {
 using detail::json_string;
 
-constexpr auto source_json = R"({"kind":"original","label":"Noether original practice · validated template","rights":"Original wording and solutions; standard mathematical results."})";
+constexpr auto source_json = R"({"kind":"original","label":"Veyra Math original practice · validated template","rights":"Original wording and solutions; standard mathematical results."})";
 constexpr auto notice = "Original practice set. Topic mix, duration, and marks are configurable practice settings, "
     "not an official paper pattern. Difficulty is a preference; actual question levels are disclosed. Duplicate statements are excluded.";
 
