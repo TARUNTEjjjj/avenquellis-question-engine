@@ -1,0 +1,274 @@
+{
+  "checkedOn": "2026-11-03",
+  "policy": "Generated questions use original wording and solutions to standard mathematical problems. Official archive material is linked rather than republished. Titles and year labels follow the institutions; no affiliation is implied.",
+  "archives": [
+    {
+      "id": "cmi",
+      "exam": "CMI",
+      "title": "CMI undergraduate entrance: syllabus and past papers",
+      "url": "https://www.cmi.ac.in/admissions/syllabus.php",
+      "publisher": "Chennai Mathematical Institute",
+      "kind": "official-archive",
+      "notes": "Official page lists undergraduate papers through 2025 and describes mostly Class 12 material, objective questions, and longer problems. Its postgraduate entries must not be mixed into the undergraduate bank."
+    },
+    {
+      "id": "isi",
+      "exam": "ISI",
+      "title": "ISI B.Stat. syllabus and sample questions",
+      "url": "https://admission.isical.ac.in/Programs/BStat.html",
+      "publisher": "Indian Statistical Institute",
+      "kind": "official-archive",
+      "notes": "Retain the publisher's label Sample Questions. UGA and UGB resources are separate. Archive lists 2026 and 2015\u20132024; do not invent a 2025 entry."
+    },
+    {
+      "id": "hbcse",
+      "exam": "RMO",
+      "title": "HBCSE RMO, INMO and IOQM past papers",
+      "url": "https://olympiads.hbcse.tifr.res.in/past-papers-sample-questions/",
+      "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+      "kind": "official-archive",
+      "notes": "Official mathematics archive includes papers and solutions. It explicitly notes that published solutions are not the only possible valid solutions."
+    }
+  ],
+  "papers": [
+    {
+      "id": "cmi-2025",
+      "exam": "CMI",
+      "year": 2025,
+      "title": "CMI BSc entrance 2025",
+      "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf",
+      "solutionsUrl": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025-solutions.pdf",
+      "kind": "official-paper",
+      "questionCount": 23,
+      "maxMarks": 120,
+      "notes": "17 Part A items carry 40 points; six Part B problems carry 80 points. Correct reasoning is required in Part B. The linked solution document labels itself draft."
+    },
+    {
+      "id": "isi-ugb-2026",
+      "exam": "ISI",
+      "year": 2026,
+      "title": "ISI UGB 2026 sample questions",
+      "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2026.pdf",
+      "kind": "official-sample",
+      "questionCount": 8,
+      "maxMarks": 80,
+      "notes": "Each question is marked 10 points in this document."
+    },
+    {
+      "id": "isi-ugb-2024",
+      "exam": "ISI",
+      "year": 2024,
+      "title": "ISI UGB 2024 sample questions",
+      "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf",
+      "kind": "official-sample",
+      "questionCount": 8
+    },
+    {
+      "id": "rmo-2025",
+      "exam": "RMO",
+      "year": 2025,
+      "title": "RMO 2025 \u2014 Non-KV, Non-JNV paper",
+      "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/RMO-2025-Paper-1.pdf",
+      "kind": "official-paper",
+      "questionCount": 6,
+      "durationMinutes": 180,
+      "maxMarks": 102,
+      "notes": "The exam paper requires justification and assigns equal marks to all six questions."
+    },
+    {
+      "id": "rmo-2024",
+      "exam": "RMO",
+      "year": 2024,
+      "title": "RMO 2024 problems and official solutions",
+      "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf",
+      "kind": "official-solutions",
+      "questionCount": 6
+    }
+  ],
+  "chapterIndex": [
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 2,
+      "section": "A",
+      "topic": "probability",
+      "summary": "Randomly divide an integer set into two parts."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 6,
+      "section": "A",
+      "topic": "geometry",
+      "summary": "Find the closest point on a plane."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 7,
+      "section": "A",
+      "topic": "calculus",
+      "summary": "Evaluate an iterated logarithmic and integral limit."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 8,
+      "section": "A",
+      "topic": "geometry",
+      "summary": "Identify a fixed-angle planar locus."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 10,
+      "section": "A",
+      "topic": "calculus",
+      "summary": "Minimize distance to a bounded parabola."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 12,
+      "section": "A",
+      "topic": "combinatorics",
+      "summary": "Count constrained integer tuples."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 13,
+      "section": "A",
+      "topic": "algebra",
+      "summary": "Complete a polynomial factorization proof."
+    },
+    {
+      "exam": "CMI",
+      "year": 2025,
+      "paperId": "cmi-2025",
+      "question": 15,
+      "section": "A",
+      "topic": "number-theory",
+      "summary": "Complete an infinite-descent argument."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 1,
+      "topic": "calculus",
+      "summary": "Asymptotic growth of a sum of cube roots."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 2,
+      "topic": "algebra",
+      "summary": "Classify real roots of a parameterized polynomial."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 3,
+      "topic": "geometry",
+      "summary": "An area identity from squares built on quadrilateral sides."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 4,
+      "topic": "calculus",
+      "summary": "Differentiability of a product with an oscillating sine."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 5,
+      "topic": "calculus",
+      "summary": "Relate a limit at a polynomial root to its multiplicity."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 6,
+      "topic": "algebra",
+      "summary": "Bounds for an expression under a nonnegative sum constraint."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 7,
+      "topic": "calculus",
+      "summary": "A related-rates problem for a container of revolution."
+    },
+    {
+      "exam": "ISI",
+      "year": 2024,
+      "paperId": "isi-ugb-2024",
+      "question": 8,
+      "topic": "combinatorics",
+      "summary": "Bounds on ordered tournament scores."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 1,
+      "topic": "combinatorics",
+      "summary": "Construct or rule out permutations with constrained prefix sums."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 2,
+      "topic": "number-theory",
+      "summary": "Classify integers using a sum of division remainders."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 3,
+      "topic": "geometry",
+      "summary": "A relation among centres of an isosceles triangle."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 4,
+      "topic": "algebra",
+      "summary": "Bound the distance between two of four real numbers."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 5,
+      "topic": "geometry",
+      "summary": "A length identity in a cyclic trapezium."
+    },
+    {
+      "exam": "RMO",
+      "year": 2024,
+      "paperId": "rmo-2024",
+      "question": 6,
+      "topic": "number-theory",
+      "summary": "Count divisibility chains ending at a prime-power product."
+    }
+  ]
+}
