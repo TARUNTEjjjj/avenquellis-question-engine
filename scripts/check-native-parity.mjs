@@ -54,6 +54,18 @@ for (const exam of ['CMI','ISI','RMO']) {
     compare(args, generateMock({exam,count:30,seed}));
   }
 }
+// JavaScript validates generator.seed.length in UTF-16 units, including its suffix.
+for (const seed of ['😀'.repeat(65), '😀'.repeat(124), '中'.repeat(248)]) {
+  const q=generateQuestion({seed});
+  const ref={id:q.id,templateId:q.templateId,seed:q.generator.seed,exam:q.exam,difficulty:q.requestedDifficulty};
+  assert.deepEqual(resolveQuestionRef(ref),q);
+  compare(['question','--seed',seed],q);
+  compare(['replay','--family',q.templateId,'--variant-seed',q.generator.seed],q);
+}
+const longestMockSeed = '😀'.repeat(124) + 'a';
+compare(['mock','--count','1','--seed',longestMockSeed], generateMock({count:1,seed:longestMockSeed}));
+reject(['question','--seed',longestMockSeed]);
+reject(['replay','--family','number-gcd','--variant-seed',longestMockSeed+':variant']);
 compare(['question'], generateQuestion());
 compare(['mock'], generateMock());
 compare(['question','--type','numeric','--difficulty','hard'], generateQuestion({type:'numeric',difficulty:'hard'}));

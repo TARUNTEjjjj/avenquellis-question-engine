@@ -29,7 +29,7 @@ The CLI prints UTF-8 JSON. Invalid options and exhausted variant pools produce a
 ./build/noether-questions replay --family number-gcd --variant-seed week-1:variant --exam ISI --difficulty advanced
 ```
 
-`--seed` accepts a valid UTF-8 string up to 240 bytes. `--seed-number` accepts a JavaScript-safe integer. The two types are preserved when calculating mock IDs. Each family supplies deterministic draws and computes its own parameters, text, proof and numeric answer where applicable. Chapter generation takes a single topic. Mock generation supports 1–30 questions and rejects requests that exhaust the selected finite pool.
+`--seed` accepts valid UTF-8. A complete generator seed, including its `:variant` or `:mock:N` suffix, is limited to 256 UTF-16 code units to match browser reference validation. Supplementary characters such as 😀 count as two units. A single-question seed can therefore contain 248 units, and the available length for a mock seed depends on its attempt suffix. `--seed-number` accepts a JavaScript-safe integer. The two types are preserved when calculating mock IDs. Each family supplies deterministic draws and computes its own parameters, text, proof and numeric answer where applicable. Chapter generation takes a single topic. Mock generation supports 1–30 questions and rejects requests that exhaust the selected finite pool.
 
 ## Link the C++ library
 

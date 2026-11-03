@@ -9,29 +9,46 @@
 
 namespace noether::questions::detail {
 
+namespace {
+std::uint32_t next_scalar(std::string_view text, std::size_t& pos) {
+    const unsigned first = static_cast<unsigned char>(text[pos++]);
+    if (first < 128) return first;
+    unsigned extra = 0;
+    std::uint32_t cp = 0;
+    if (first >= 0xc2 && first <= 0xdf) { cp = first & 31u; extra = 1; }
+    else if (first >= 0xe0 && first <= 0xef) { cp = first & 15u; extra = 2; }
+    else if (first >= 0xf0 && first <= 0xf4) { cp = first & 7u; extra = 3; }
+    else throw std::invalid_argument("Seed is not valid UTF-8.");
+    if (text.size() - pos < extra) throw std::invalid_argument("Incomplete UTF-8 seed.");
+    for (unsigned j = 0; j < extra; ++j) {
+        const unsigned b = static_cast<unsigned char>(text[pos++]);
+        if ((b & 0xc0u) != 0x80u) throw std::invalid_argument("Invalid UTF-8 continuation.");
+        cp = (cp << 6u) | (b & 63u);
+    }
+    if ((extra == 2 && cp < 0x800) || (extra == 3 && cp < 0x10000) ||
+        (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff)
+        throw std::invalid_argument("Invalid Unicode scalar.");
+    return cp;
+}
+} // namespace
+
+// A valid scalar needs at most three UTF-8 bytes per UTF-16 code unit.
+// Reject a very large buffer before decoding it. Astral scalars count as two units.
+bool seed_fits(std::string_view text, std::size_t limit) {
+    if (text.size() > 3 * limit) return false;
+    std::size_t units = 0;
+    for (std::size_t pos = 0; pos < text.size();) {
+        units += next_scalar(text, pos) > 0xffff ? 2u : 1u;
+        if (units > limit) return false;
+    }
+    return true;
+}
+
 std::uint32_t hash(std::string_view s) {
     // JavaScript iterates Unicode code points, then hashes charCodeAt(0).
     std::uint32_t h = 2166136261u;
     for (std::size_t pos = 0; pos < s.size();) {
-        const unsigned first = static_cast<unsigned char>(s[pos++]);
-        std::uint32_t cp = first;
-        if (first >= 128) {
-            unsigned extra = 0;
-            if (first >= 0xc2 && first <= 0xdf) { cp = first & 31u; extra = 1; }
-            else if (first >= 0xe0 && first <= 0xef) { cp = first & 15u; extra = 2; }
-            else if (first >= 0xf0 && first <= 0xf4) { cp = first & 7u; extra = 3; }
-            else throw std::invalid_argument("Seed is not valid UTF-8.");
-            if (s.size() - pos < extra) throw std::invalid_argument("Incomplete UTF-8 seed.");
-            for (unsigned j = 0; j < extra; ++j) {
-                const unsigned b = static_cast<unsigned char>(s[pos++]);
-                if ((b & 0xc0u) != 0x80u) throw std::invalid_argument("Invalid UTF-8 continuation.");
-                cp = (cp << 6u) | (b & 63u);
-            }
-            if ((extra == 2 && cp < 0x800) || (extra == 3 && cp < 0x10000) ||
-                (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff) {
-                throw std::invalid_argument("Invalid Unicode scalar.");
-            }
-        }
+        const auto cp = next_scalar(s, pos);
         const auto unit = cp > 0xffff ? 0xd800u + ((cp - 0x10000u) >> 10u) : cp;
         h = (h ^ unit) * 16777619u;
     }
@@ -71,7 +88,8 @@ std::string seed_text(const Seed& seed) {
         return std::to_string(*number);
     }
     const auto& text = std::get<std::string>(seed);
-    if (text.size() > 240) throw std::invalid_argument("Seed exceeds 240 UTF-8 bytes.");
+    // Even the shortest generated suffix (":mock:0") occupies seven code units.
+    if (!detail::seed_fits(text, 249)) throw std::invalid_argument("Seed is too long for a 256-unit question reference.");
     return text;
 }
 
@@ -115,6 +133,7 @@ std::string base36(std::uint32_t n) {
 }
 
 Question make(const Family& family, const std::string& seed, const Options& options) {
+    if (!detail::seed_fits(seed, 256)) throw std::invalid_argument("A complete variant seed may use at most 256 UTF-16 code units.");
     Random random(seed);
     auto content = family.make(random);
     Question q;
@@ -173,7 +192,7 @@ std::optional<Question> resolve_reference(const Reference& ref) {
     if (ref.id.empty() || ref.id.size() > 160 ||
         ref.id.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789-") != std::string::npos ||
         (ref.template_id && ref.template_id->size() > 100) ||
-        (ref.seed && (ref.seed->empty() || ref.seed->size() > 256))) return std::nullopt;
+        (ref.seed && (ref.seed->empty() || ref.seed->size() > 3 * 256))) return std::nullopt;
     if (auto q = find_bank_question(ref.id)) {
         if ((ref.template_id && *ref.template_id != q->template_id) || (ref.seed && *ref.seed != q->seed) ||
             (ref.exam && *ref.exam != q->exam) || (ref.difficulty && *ref.difficulty != q->difficulty)) return std::nullopt;
@@ -249,7 +268,7 @@ Mock generate_chapter(const Options& options, int count) {
 
 Question replay(const std::string& template_id, const std::string& variant_seed,
                 const std::string& exam, const std::string& requested_difficulty) {
-    if (variant_seed.empty() || variant_seed.size() > 256) throw std::invalid_argument("Invalid variant seed length.");
+    if (variant_seed.empty() || variant_seed.size() > 3 * 256) throw std::invalid_argument("Invalid variant seed length.");
     Options options;
     options.exam = exam;
     options.difficulty = requested_difficulty;

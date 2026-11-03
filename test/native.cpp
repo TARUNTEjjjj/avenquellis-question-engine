@@ -87,13 +87,41 @@ void test_mocks() {
     o.topic = "all"; rejects([&] { generate_chapter(o); });
     o.type = "numeric"; rejects([&] { generate_question(o); });
     o.exam = "ISI"; o.topic = "geometry"; rejects([&] { generate_mock(o, 10); });
-    o.topic = "algebra"; o.seed = std::string(241, 'x'); rejects([&] { generate_question(o); });
+    o.topic = "algebra"; o.seed = std::string(250, 'x'); rejects([&] { generate_question(o); });
     o.seed = std::string("\xff", 1); rejects([&] { generate_question(o); });
+}
+
+void test_unicode_refs() {
+    Options o;
+    std::string emoji;
+    for (int i = 0; i < 65; ++i) emoji += "😀";
+    o.seed = emoji;
+    const auto q = generate_question(o);
+    check(q.id == "probability-indicators-bo56kn", "JavaScript supplementary-character seed hash");
+    auto restored = resolve_reference({q.id, q.template_id, q.seed, q.exam, q.requested_difficulty});
+    check(restored && to_json(*restored) == to_json(q), "valid long Unicode reference");
+
+    std::string raw;
+    for (int i = 0; i < 124; ++i) raw += "😀"; // 248 units, leaving eight for ":variant".
+    o.seed = raw;
+    const auto longest = generate_question(o);
+    check(resolve_reference({longest.id, longest.template_id, longest.seed, longest.exam,
+                             longest.requested_difficulty}).has_value(), "exact 256-unit reference");
+    o.seed = raw + "a";
+    rejects([&] { generate_question(o); });
+    const auto mock = generate_mock(o, 1); // A shorter ":mock:0" suffix still fits.
+    const auto& m = mock.questions.front();
+    check(resolve_reference({m.id, m.template_id, m.seed, m.exam, m.requested_difficulty}).has_value(), "exact 256-unit mock seed");
+    const auto invalid = raw + "x:variant";
+    rejects([&] { replay("number-gcd", invalid, "CMI", "advanced"); });
+    check(!resolve_reference({longest.id, longest.template_id, invalid, "CMI", "advanced"}), "oversize reference");
+    const std::string bad("\xed\xa0\x80", 3); // A UTF-8 encoding of a surrogate.
+    check(!resolve_reference({longest.id, longest.template_id, bad + ":variant", "CMI", "advanced"}), "malformed seed");
 }
 
 } // namespace
 
 int main() {
-    try { test_bank(); test_numeric(); test_mocks(); }
+    try { test_bank(); test_numeric(); test_mocks(); test_unicode_refs(); }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }
