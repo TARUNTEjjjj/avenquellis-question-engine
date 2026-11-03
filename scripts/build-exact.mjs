@@ -29,10 +29,13 @@ if(nativeOnly){console.log(`Native core and upstream tests passed: ${buildDir}`)
 const empp=join(sdk,'upstream','emscripten','em++');
 if(!existsSync(empp))throw Error(`Missing official Emscripten compiler at ${empp}. Install pinned 6.0.13 into the local emsdk directory; see docs/exact-math.md.`);
 const env={...process.env,EM_CONFIG:join(sdk,'.emscripten'),EM_CACHE:join(sdk,'upstream','emscripten','cache'),...(python?{EMSDK_PYTHON:python,PATH:dirname(python)+':'+process.env.PATH}:{})};
+const version=spawnSync(empp,['--version'],{encoding:'utf8',env});
+if(version.status!==0||!/\b6\.0\.13\b/.test(version.stdout))throw Error('This reproducible build requires Emscripten 6.0.13.');
 const flags=[...common,'-fexceptions',...sources,join(root,'cpp','bridge.cpp'),'--no-entry','-sMODULARIZE=1','-sEXPORT_ES6=1','-sEXPORT_NAME=createAxiomMath','-sENVIRONMENT=web,worker,node','-sEXPORTED_FUNCTIONS=_axiom_evaluate,_axiom_check','-sEXPORTED_RUNTIME_METHODS=ccall','-sALLOW_MEMORY_GROWTH=1','-sINITIAL_MEMORY=16777216','-sMAXIMUM_MEMORY=67108864','-sSTACK_SIZE=1048576','-sDYNAMIC_EXECUTION=0','-sFILESYSTEM=0','-o',join(output,'axiom-math-runtime.js')];
 run(empp,flags,env);
 copyFileSync(join(vendor,'LICENSE'),join(output,'AXIOM-MATH-LICENSE.txt'));
+if(output!==join(root,'browser'))copyFileSync(join(root,'browser','exact-math.js'),join(output,'exact-math.js'));
 const artifacts=['axiom-math-runtime.js','axiom-math-runtime.wasm'];
-const metadata={source:provenance.repository,commit:provenance.commit,license:'MIT',toolchain:'Emscripten 6.0.13',target:'wasm32-unknown-emscripten',standard:'C++20',sourceFiles:provenance.files,flags:flags.filter(flag=>!flag.includes(root)),artifacts:Object.fromEntries(artifacts.map(name=>[name,{bytes:readFileSync(join(output,name)).length,sha256:createHash('sha256').update(readFileSync(join(output,name))).digest('hex')}]))};
+const metadata={source:provenance.repository,commit:provenance.commit,license:'MIT',toolchain:'Emscripten 6.0.13',target:'wasm32-unknown-emscripten',standard:'C++20',sourceFiles:provenance.files,flags:flags.map(flag=>flag.replaceAll(root,'<repository>')),artifacts:Object.fromEntries(artifacts.map(name=>[name,{bytes:readFileSync(join(output,name)).length,sha256:createHash('sha256').update(readFileSync(join(output,name))).digest('hex')}]))};
 writeFileSync(join(output,'build-info.json'),JSON.stringify(metadata,null,2)+'\n');
 console.log(`Built real AxiomMath WebAssembly: ${output}`);
