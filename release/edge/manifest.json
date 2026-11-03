@@ -1,12 +1,12 @@
 {
-  "component": "Veyra Math question engine",
+  "component": "Avenquellis question engine",
   "abi": 1,
-  "sourceCommit": "25f1e0a0e488ecac56bbf33c15bcee95c89989e2",
+  "sourceCommit": "05ed7f3d0a1063e8b0cae6cd14a1eb4adfafa722",
   "toolchain": "Emscripten 6.0.13",
-  "wasm": "veyra-questions.wasm",
-  "bytes": 237033,
-  "sha256": "e473e36d6afadd2b28fa4b2a59e36c1959f9be356b23d2bc9d841bf1adf44993",
-  "adapterSha256": "8ee3cd4e6e38833ab15f76801b1ce46c2f45571bab46585bbe69ffd273d96bdc",
+  "wasm": "avenquellis-questions.wasm",
+  "bytes": 237076,
+  "sha256": "669739ff7da9364aedd12c07926f6f2797d43afdf41a9a70d562153eee5846b9",
+  "adapterSha256": "cd42c78d4cc2d9362e36871d05575c8a00a2eaa65591f9550018650b79f35a8b",
   "imports": [
     {
       "module": "wasi_snapshot_preview1",
