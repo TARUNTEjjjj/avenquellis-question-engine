@@ -9,12 +9,12 @@
 namespace {
 using namespace noether::questions;
 constexpr auto usage =
-    "veyra-questions bank\n"
-    "veyra-questions get ID\n"
-    "veyra-questions question [options]\n"
-    "veyra-questions mock [options] [--count 1..30]\n"
-    "veyra-questions chapter --topic TOPIC [options] [--count 1..30]\n"
-    "veyra-questions replay --family ID --variant-seed SEED [--exam TRACK] [--difficulty LEVEL]\n"
+    "avenquellis-questions bank\n"
+    "avenquellis-questions get ID\n"
+    "avenquellis-questions question [options]\n"
+    "avenquellis-questions mock [options] [--count 1..30]\n"
+    "avenquellis-questions chapter --topic TOPIC [options] [--count 1..30]\n"
+    "avenquellis-questions replay --family ID --variant-seed SEED [--exam TRACK] [--difficulty LEVEL]\n"
     "Options: --topic TOPIC, --exam CMI|ISI|RMO, --difficulty foundation|advanced|olympiad,\n"
     "         --type all|proof|numeric, --seed TEXT or --seed-number INTEGER.\n"
     "Commands print JSON containing answer keys and authored practice rubrics.\n";
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
         if (!std::cout) throw std::runtime_error("Could not write output.");
         return 0;
     } catch (const std::exception& e) {
-        std::cerr << "veyra-questions: " << e.what() << '\n';
+        std::cerr << "avenquellis-questions: " << e.what() << '\n';
         return 2;
     }
 }

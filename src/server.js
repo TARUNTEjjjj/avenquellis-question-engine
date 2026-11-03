@@ -22,5 +22,5 @@ export function createApp() {
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
  const port=Number(process.env.PORT||4101);
- createApp().listen(port,'127.0.0.1',()=>console.log(`Veyra Math question engine: http://127.0.0.1:${port}`));
+ createApp().listen(port,'127.0.0.1',()=>console.log(`Avenquellis question engine: http://127.0.0.1:${port}`));
 }

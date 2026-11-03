@@ -36,12 +36,12 @@ export function createNativeGenerator(module) {
   const abi=instance.exports;
   memory=abi.memory;
   abi._initialize();
-  if(abi.veyra_abi_version()!==1)throw Error('Unsupported native generator ABI.');
+  if(abi.avenquellis_abi_version()!==1)throw Error('Unsupported native generator ABI.');
   function invoke(op,fields) {
     const bytes = fields.map(value=>value===undefined?null:encoder.encode(value));
     const length=bytes.reduce((sum,b)=>sum+2+(b?.length||0),0);
-    if(length>abi.veyra_capacity())fail('Request exceeds generator input capacity.');
-    const start=abi.veyra_input();
+    if(length>abi.avenquellis_capacity())fail('Request exceeds generator input capacity.');
+    const start=abi.avenquellis_input();
     const data=new Uint8Array(abi.memory.buffer,start,length);
     let offset=0;
     for(const value of bytes) {
@@ -50,9 +50,9 @@ export function createNativeGenerator(module) {
       if(value!==null){data.set(value,offset);offset+=n;}
     }
     // Synchronous copy and invocation: no input view is shared across awaits.
-    const status=abi.veyra_call(op,length), size=abi.veyra_output_size();
+    const status=abi.avenquellis_call(op,length), size=abi.avenquellis_output_size();
     if(size>1024*1024)throw Error('Native output exceeds the response limit.');
-    const text=decoder.decode(new Uint8Array(abi.memory.buffer,abi.veyra_output(),size));
+    const text=decoder.decode(new Uint8Array(abi.memory.buffer,abi.avenquellis_output(),size));
     if(status===1)fail(text);
     if(status!==0)throw Error('Native generation failed.');
     return JSON.parse(text);

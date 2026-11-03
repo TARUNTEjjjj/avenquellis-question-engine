@@ -30,7 +30,7 @@ target_include_directories(noether_questions PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 noether_check_target(noether_questions)
 
-foreach(cli IN ITEMS veyra-questions noether-questions)
+foreach(cli IN ITEMS avenquellis-questions noether-questions)
     add_executable(${cli} app/main.cpp)
     target_link_libraries(${cli} PRIVATE NoetherQuestions::questions)
     noether_check_target(${cli})
@@ -38,9 +38,9 @@ endforeach()
 if(BUILD_SHARED_LIBS AND UNIX)
     file(RELATIVE_PATH lib_from_bin "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_LIBDIR}")
     if(APPLE)
-        set_property(TARGET noether-questions veyra-questions PROPERTY INSTALL_RPATH "@loader_path/${lib_from_bin}")
+        set_property(TARGET noether-questions avenquellis-questions PROPERTY INSTALL_RPATH "@loader_path/${lib_from_bin}")
     else()
-        set_property(TARGET noether-questions veyra-questions PROPERTY INSTALL_RPATH "$ORIGIN/${lib_from_bin}")
+        set_property(TARGET noether-questions avenquellis-questions PROPERTY INSTALL_RPATH "$ORIGIN/${lib_from_bin}")
     endif()
 endif()
 
@@ -49,10 +49,10 @@ if(BUILD_TESTING)
     target_link_libraries(noether-native-tests PRIVATE NoetherQuestions::questions)
     noether_check_target(noether-native-tests)
     add_test(NAME native-library COMMAND noether-native-tests)
-    add_test(NAME cli-help COMMAND veyra-questions --help)
+    add_test(NAME cli-help COMMAND avenquellis-questions --help)
     find_program(NOETHER_NODE node)
     if(NOETHER_NODE)
-        add_test(NAME browser-parity COMMAND "${NOETHER_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-native-parity.mjs" "$<TARGET_FILE:veyra-questions>")
+        add_test(NAME browser-parity COMMAND "${NOETHER_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-native-parity.mjs" "$<TARGET_FILE:avenquellis-questions>")
         set_tests_properties(browser-parity PROPERTIES TIMEOUT 150)
     else()
         message(STATUS "Node not found; skipping the optional browser differential test.")
@@ -63,7 +63,7 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/test/consumer.cmake")
 endif()
 
-install(TARGETS noether_questions veyra-questions noether-questions EXPORT NoetherQuestionsTargets
+install(TARGETS noether_questions avenquellis-questions noether-questions EXPORT NoetherQuestionsTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

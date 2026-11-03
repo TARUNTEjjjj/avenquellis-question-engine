@@ -1,5 +1,5 @@
 {
-  "name": "@veyra/question-engine",
+  "name": "@avenquellis/question-engine",
   "version": "0.1.0",
   "description": "Deterministic mathematics practice generation with solutions and criterion rubrics",
   "type": "module",

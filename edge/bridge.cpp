@@ -74,12 +74,12 @@ std::string execute(unsigned op, Fields fields) {
 } // namespace
 
 extern "C" {
-unsigned veyra_abi_version() { return 1; }
-unsigned char* veyra_input() { return input.data(); }
-unsigned veyra_capacity() { return static_cast<unsigned>(input.size()); }
-const char* veyra_output() { return output.data(); }
-unsigned veyra_output_size() { return static_cast<unsigned>(output.size()); }
-unsigned veyra_call(unsigned op, unsigned bytes) noexcept {
+unsigned avenquellis_abi_version() { return 1; }
+unsigned char* avenquellis_input() { return input.data(); }
+unsigned avenquellis_capacity() { return static_cast<unsigned>(input.size()); }
+const char* avenquellis_output() { return output.data(); }
+unsigned avenquellis_output_size() { return static_cast<unsigned>(output.size()); }
+unsigned avenquellis_call(unsigned op, unsigned bytes) noexcept {
     try {
         output = execute(op, Fields(bytes));
         return 0;

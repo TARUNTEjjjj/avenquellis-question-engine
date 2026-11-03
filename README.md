@@ -1,4 +1,4 @@
-# Veyra Math Question Engine
+# Avenquellis Question Engine
 
 A C++20 library and command-line tool for generating CMI, ISI and RMO practice. It includes **48 authored mathematical families across six topics**. Thirty-nine families generate proof questions and nine generate numeric questions. Each question has a worked solution, a ten-point rubric, provenance and a seed for replay. The browser-compatible JavaScript implementation serves the same bank and produces the same seeded variants. Difficulty labels are author estimates.
 
@@ -10,23 +10,23 @@ CMake 3.20+, a C++20 compiler and a native build tool such as Make or Ninja are 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
-./build/veyra-questions --help
+./build/avenquellis-questions --help
 ```
 
-The installed CLI is `veyra-questions`. The original `noether-questions` executable and CMake target remain available for existing consumers. The CLI prints UTF-8 JSON. Invalid options and exhausted variant pools produce an error on stderr and exit code 2.
+The installed CLI is `avenquellis-questions`. The original `noether-questions` executable and CMake target remain available for existing consumers. The CLI prints UTF-8 JSON. Invalid options and exhausted variant pools produce an error on stderr and exit code 2.
 
 ```sh
 # The complete bank, or one known bank proof.
-./build/veyra-questions bank
-./build/veyra-questions get number-gcd-17s23lf
+./build/avenquellis-questions bank
+./build/avenquellis-questions get number-gcd-17s23lf
 
 # One seeded proof, a chapter test, and a mixed mock.
-./build/veyra-questions question --topic algebra --type proof --exam ISI --seed week-1
-./build/veyra-questions chapter --topic number-theory --exam RMO --count 12 --seed-number 42
-./build/veyra-questions mock --exam CMI --difficulty olympiad --count 18 --seed practice-A
+./build/avenquellis-questions question --topic algebra --type proof --exam ISI --seed week-1
+./build/avenquellis-questions chapter --topic number-theory --exam RMO --count 12 --seed-number 42
+./build/avenquellis-questions mock --exam CMI --difficulty olympiad --count 18 --seed practice-A
 
 # Reproduce a variant from a returned templateId and generator.seed.
-./build/veyra-questions replay --family number-gcd --variant-seed week-1:variant --exam ISI --difficulty advanced
+./build/avenquellis-questions replay --family number-gcd --variant-seed week-1:variant --exam ISI --difficulty advanced
 ```
 
 `--seed` accepts valid UTF-8. A complete generator seed, including its `:variant` or `:mock:N` suffix, is limited to 256 UTF-16 code units to match browser reference validation. Supplementary characters such as 😀 count as two units. A single-question seed can therefore contain 248 units, and the available length for a mock seed depends on its attempt suffix. `--seed-number` accepts a JavaScript-safe integer. The two types are preserved when calculating mock IDs. Each family supplies deterministic draws and computes its own parameters, text, proof and numeric answer where applicable. Chapter generation takes a single topic. Mock generation supports 1–30 questions and rejects requests that exhaust the selected finite pool.
@@ -73,7 +73,7 @@ EMXX=/path/to/emsdk/upstream/emscripten/em++ bash scripts/build-edge.sh build-ed
 node edge/verify.mjs build-edge
 ```
 
-The build writes `veyra-questions.wasm`, `adapter.mjs` and `manifest.json` with the exact source commit, compiler, ABI version, byte length, SHA-256 checksums and module imports. CI uploads the verified set together. The Pages deployment imports the WASM module at build time and instantiates it once per isolate. Each invocation copies a complete input and output synchronously. The reactor has a fixed 8 MiB memory and a 4 KiB input buffer, and the adapter rejects outputs above 1 MiB. Impossible finite-pool requests are rejected before generating candidates.
+The build writes `avenquellis-questions.wasm`, `adapter.mjs` and `manifest.json` with the exact source commit, compiler, ABI version, byte length, SHA-256 checksums and module imports. CI uploads the verified set together. The Pages deployment imports the WASM module at build time and instantiates it once per isolate. Each invocation copies a complete input and output synchronously. The reactor has a fixed 8 MiB memory and a 4 KiB input buffer, and the adapter rejects outputs above 1 MiB. Impossible finite-pool requests are rejected before generating candidates.
 
 The web API accepts `POST /api/generate` with a JSON object. Set `mode` to `question`, `chapter` or `mock` and add the practice options below. A successful response contains `engine: "cpp-wasm"` and the original question or mock schema under `result`. The separate Node service remains available for JavaScript integrations.
 

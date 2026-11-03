@@ -9,7 +9,7 @@ set(consumer "${BUILD}/consumer-build")
 file(REMOVE_RECURSE "${prefix}" "${consumer}")
 check("${CMAKE_COMMAND}" --install "${BUILD}" --prefix "${prefix}" --config "${CONFIG}")
 check("${prefix}/${BINDIR}/noether-questions" --help)
-check("${prefix}/${BINDIR}/veyra-questions" chapter --topic algebra --count 2)
+check("${prefix}/${BINDIR}/avenquellis-questions" chapter --topic algebra --count 2)
 check("${CMAKE_COMMAND}" -S "${SOURCE}/test/consumer" -B "${consumer}" "-DCMAKE_PREFIX_PATH=${prefix}"
     "-DCMAKE_CXX_COMPILER=${COMPILER}" "-DEXAMPLE_SOURCE=${SOURCE}/examples/chapter.cpp")
 check("${CMAKE_COMMAND}" --build "${consumer}" --config "${CONFIG}")
