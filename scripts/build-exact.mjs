@@ -34,7 +34,8 @@ if(version.status!==0||!/\b6\.0\.13\b/.test(version.stdout))throw Error('This re
 const flags=[...common,'-fexceptions',...sources,join(root,'cpp','bridge.cpp'),'--no-entry','-sMODULARIZE=1','-sEXPORT_ES6=1','-sEXPORT_NAME=createAxiomMath','-sENVIRONMENT=web,worker,node','-sEXPORTED_FUNCTIONS=_axiom_evaluate,_axiom_check','-sEXPORTED_RUNTIME_METHODS=ccall','-sALLOW_MEMORY_GROWTH=1','-sINITIAL_MEMORY=16777216','-sMAXIMUM_MEMORY=67108864','-sSTACK_SIZE=1048576','-sDYNAMIC_EXECUTION=0','-sFILESYSTEM=0','-o',join(output,'axiom-math-runtime.js')];
 run(empp,flags,env);
 copyFileSync(join(vendor,'LICENSE'),join(output,'AXIOM-MATH-LICENSE.txt'));
-if(output!==join(root,'browser'))copyFileSync(join(root,'browser','exact-math.js'),join(output,'exact-math.js'));
+// The Emscripten, musl and libc++ notices for the linked runtime travel with the module.
+if(output!==join(root,'browser'))for(const name of ['exact-math.js','THIRD-PARTY-NOTICES.txt'])copyFileSync(join(root,'browser',name),join(output,name));
 const artifacts=['axiom-math-runtime.js','axiom-math-runtime.wasm'];
 const metadata={source:provenance.repository,commit:provenance.commit,license:'MIT',toolchain:'Emscripten 6.0.13',target:'wasm32-unknown-emscripten',standard:'C++20',sourceFiles:provenance.files,flags:flags.map(flag=>flag.replaceAll(root,'<repository>')),artifacts:Object.fromEntries(artifacts.map(name=>[name,{bytes:readFileSync(join(output,name)).length,sha256:createHash('sha256').update(readFileSync(join(output,name))).digest('hex')}]))};
 writeFileSync(join(output,'build-info.json'),JSON.stringify(metadata,null,2)+'\n');

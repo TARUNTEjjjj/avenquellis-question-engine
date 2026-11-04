@@ -75,7 +75,7 @@ EMXX=/path/to/emsdk/upstream/emscripten/em++ bash scripts/build-edge.sh build-ed
 node edge/verify.mjs build-edge
 ```
 
-The build writes `avenquellis-questions.wasm`, `adapter.mjs` and `manifest.json` with the exact source commit, compiler, ABI version, byte length, SHA-256 checksums and module imports. CI uploads the verified set together. The Pages deployment imports the WASM module at build time and instantiates it once per isolate. Each invocation copies a complete input and output synchronously. The reactor has a fixed 8 MiB memory and a 4 KiB input buffer, and the adapter rejects outputs above 1 MiB. Impossible finite-pool requests are rejected before generating candidates.
+The build writes `avenquellis-questions.wasm`, `adapter.mjs`, `THIRD-PARTY-NOTICES.txt` for the linked Emscripten, musl and libc++ runtime code, and `manifest.json` with the exact source commit, compiler, ABI version, byte length, SHA-256 checksums and module imports. CI uploads the verified set together. The Pages deployment imports the WASM module at build time and instantiates it once per isolate. Each invocation copies a complete input and output synchronously. The reactor has a fixed 8 MiB memory and a 4 KiB input buffer, and the adapter rejects outputs above 1 MiB. Impossible finite-pool requests are rejected before generating candidates.
 
 The web API accepts `POST /api/generate` with a JSON object. Set `mode` to `question`, `chapter` or `mock` and add the practice options below. A successful response contains `engine: "cpp-wasm"` and the original question or mock schema under `result`. The separate Node service remains available for JavaScript integrations.
 

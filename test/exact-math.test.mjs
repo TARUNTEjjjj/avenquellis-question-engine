@@ -30,6 +30,11 @@ test('loaded artifact is WebAssembly and the same original C++ source is pinned'
  assert.deepEqual([...bytes.subarray(0,8)],[0,97,115,109,1,0,0,0]);assert.ok(WebAssembly.validate(bytes));
  assert.equal(exactMathInfo.implementation,'C++20 compiled to WebAssembly');assert.equal(exactMathInfo.version,'ae5b38257b7825db603ecd5c7b28ade32c1a613f');
 });
+test('browser artifact ships the notices of the toolchain that compiled it',()=>{
+ const {toolchain}=JSON.parse(readFileSync(join(root,'browser/build-info.json'),'utf8'));
+ const notices=readFileSync(join(root,'browser/THIRD-PARTY-NOTICES.txt'),'utf8');
+ for(const component of [toolchain,'Emscripten musl libc','LLVM libc++'])assert.ok(notices.includes('\n'+component+'\n'),component);
+});
 test('compiled WASM computes exact fractions, decimals, comparisons and worked steps',()=>{
  assert.equal(evaluateExact('0.1+0.2').value,'3/10');assert.equal(evaluateExact('1/3+1/6').value,'1/2');
  assert.deepEqual(checkExact('2/4','.5'),{ok:true,equivalent:true,left:'1/2',right:'1/2'});
