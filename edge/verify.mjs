@@ -34,4 +34,4 @@ assert.throws(()=>engine.generate({mode:'mock',topic:'geometry',type:'numeric',c
 assert.throws(()=>engine.generate({mode:'chapter',topic:'all'}),/chapter/);
 assert.equal(engine.resolve({id:questionBank[0].id,solution:'forged'}),null);
 same(engine.generate({mode:'question'}),generateQuestion());
-console.log('Verified full bank, 48 bank references,'+checks+' variant/mock/reference comparisons and malformed input recovery.');
+console.log('Verified full bank, 48 bank references, '+checks+' variant/mock/reference comparisons and malformed input recovery.');
