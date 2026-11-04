@@ -98,7 +98,7 @@ const question = generateQuestion({topic:'number-theory', difficulty:'olympiad',
 const mock = generateMock({exam:'ISI', topic:'all', difficulty:'advanced', count:8, seed:17});
 ```
 
-`src/index.js` works unchanged in browsers. It exports `topics`, `topicLabels`, `difficulties`, `exams`, `engineInfo`, `questionBank`, `generateQuestion`, `generateMock`, and `getQuestion`. Optional `type` selects `all`, `proof`, or `numeric`; RMO defaults to and enforces proof questions.
+`src/index.js` works unchanged in browsers. It exports `topics`, `topicLabels`, `difficulties`, `exams`, `engineInfo`, `questionBank`, `generateQuestion`, `generateMock`, `getQuestion`, `resolveQuestionRef` (rebuilds a saved bank or generated reference, or returns `null`), and `choose`. Optional `type` selects `all`, `proof`, or `numeric`; RMO defaults to and enforces proof questions.
 
 Topics: `algebra`, `number-theory`, `combinatorics`, `geometry`, `calculus`, `probability`.
 
