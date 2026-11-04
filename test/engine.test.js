@@ -52,6 +52,16 @@ test('HTTP API generates mocks and rejects malformed inputs',async()=>{
   const invalid=await fetch(`${base}/generate`,{method:'POST',headers:{'content-type':'application/json'},body:'{"topic":"invalid"}'});assert.equal(invalid.status,400);
  } finally {await new Promise(resolve=>server.close(resolve));}
 });
+test('HTTP API decodes a UTF-8 character split across body chunks',async()=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try {
+  const bytes=new TextEncoder().encode(JSON.stringify({seed:'π-week'})),split=bytes.indexOf(0xcf)+1;
+  // Send the two bytes of π in separate chunks.
+  const body=new ReadableStream({async start(controller){controller.enqueue(bytes.subarray(0,split));await new Promise(resolve=>setTimeout(resolve,50));controller.enqueue(bytes.subarray(split));controller.close();}});
+  const result=await fetch(`http://127.0.0.1:${server.address().port}/generate`,{method:'POST',headers:{'content-type':'application/json'},body,duplex:'half'});
+  assert.equal(result.status,200);assert.deepEqual(await result.json(),generateQuestion({seed:'π-week'}));
+ } finally {await new Promise(resolve=>server.close(resolve));}
+});
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{
  const options={topic:'number-theory',difficulty:'olympiad',count:12,seed:42};

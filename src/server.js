@@ -12,9 +12,9 @@ export function createApp() {
    if(req.method==='GET' && url.pathname==='/bank') return send(200,{questions:questionBank});
    if(req.method!=='POST'||!['/generate','/mock'].includes(url.pathname)) return send(404,{error:'Not found'});
    if(!req.headers['content-type']?.startsWith('application/json')) return send(415,{error:'Use application/json'});
-   let body='';
-   for await(const chunk of req) {body+=chunk;if(Buffer.byteLength(body)>16384) return send(413,{error:'Request too large'});}
-   const options=JSON.parse(body||'{}');
+   const chunks=[];let size=0;
+   for await(const chunk of req) {size+=chunk.length;if(size>16384) return send(413,{error:'Request too large'});chunks.push(chunk);}
+   const options=JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}');
    if(!options||Array.isArray(options)||typeof options!=='object') return send(400,{error:'Expected a JSON object'});
    send(200,url.pathname==='/mock'?generateMock(options):generateQuestion(options));
   } catch(error) { send(400,{error:error.message}); }
