@@ -122,3 +122,19 @@ test('server rejects tampered and oversized question references before reconstru
   assert.equal(resolveQuestionRef({...bank, seed: 'wrong'}), null);
   assert.equal(resolveQuestionRef({...bank, templateId: 'wrong'}), null);
 });
+
+test('seeds stay within the native 256-unit reference limit instead of producing unresolvable questions', () => {
+  // A 249-unit seed fits a one-question mock (":mock:0"), and 248 units fit a question (":variant").
+  const longest = generateMock({seed: 'a'.repeat(249), count: 1}).questions[0];
+  assert.equal(longest.generator.seed.length, 256);
+  assert.deepEqual(resolveQuestionRef(referenceFor(longest)), longest);
+  const question = generateQuestion({seed: 'a'.repeat(248)});
+  assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+  for (const generate of [generateQuestion, generateMock]) {
+    assert.throws(() => generate({seed: 'a'.repeat(250)}), /^RangeError: Seed is too long for a 256-unit question reference\.$/);
+  }
+  // ":variant" and ":mock:10" would make 257-unit seeds that resolveQuestionRef rejects.
+  for (const generate of [() => generateQuestion({seed: 'a'.repeat(249)}), () => generateMock({seed: 'a'.repeat(249), count: 11})]) {
+    assert.throws(generate, /^RangeError: A complete variant seed may use at most 256 UTF-16 code units\.$/);
+  }
+});
