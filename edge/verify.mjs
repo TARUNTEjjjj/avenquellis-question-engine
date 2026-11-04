@@ -8,6 +8,8 @@ const dir=resolve(process.argv[2]||'build-edge');
 const manifest=JSON.parse(await readFile(resolve(dir,'manifest.json')));
 const bytes=await readFile(resolve(dir,manifest.wasm));
 assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.sha256);
+// The linked Emscripten, musl and libc++ notices ship beside the module and name its toolchain.
+assert.ok((await readFile(resolve(dir,'THIRD-PARTY-NOTICES.txt'),'utf8')).includes('\n'+manifest.toolchain+'\n'));
 // Check the adapter's hash before importing it, so a mismatched adapter never runs.
 assert.equal(createHash('sha256').update(await readFile(resolve(dir,'adapter.mjs'))).digest('hex'),manifest.adapterSha256);
 const {createNativeGenerator}=await import(pathToFileURL(resolve(dir,'adapter.mjs')));

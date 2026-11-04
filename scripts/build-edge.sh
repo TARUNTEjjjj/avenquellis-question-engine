@@ -10,6 +10,7 @@ mkdir -p "$out"
     -sEXPORTED_FUNCTIONS=_avenquellis_abi_version,_avenquellis_input,_avenquellis_capacity,_avenquellis_output,_avenquellis_output_size,_avenquellis_call \
     -Iinclude src/native/catalog.cpp src/native/engine.cpp src/native/json.cpp edge/bridge.cpp -o "$out/avenquellis-questions.wasm"
 cp edge/adapter.mjs "$out/adapter.mjs"
+cp edge/THIRD-PARTY-NOTICES.txt "$out/THIRD-PARTY-NOTICES.txt"
 node --input-type=module - "$out" "$(git rev-parse HEAD)" <<'JS'
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
