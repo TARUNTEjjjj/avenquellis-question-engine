@@ -8,6 +8,8 @@ const dir=resolve(process.argv[2]||'build-edge');
 const manifest=JSON.parse(await readFile(resolve(dir,'manifest.json')));
 const bytes=await readFile(resolve(dir,manifest.wasm));
 assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.sha256);
+// The linked Emscripten, musl and libc++ notices ship beside the module and name its toolchain.
+assert.ok((await readFile(resolve(dir,'THIRD-PARTY-NOTICES.txt'),'utf8')).includes('\n'+manifest.toolchain+'\n'));
 // Check the adapter's hash before importing it, so a mismatched adapter never runs.
 assert.equal(createHash('sha256').update(await readFile(resolve(dir,'adapter.mjs'))).digest('hex'),manifest.adapterSha256);
 const {createNativeGenerator}=await import(pathToFileURL(resolve(dir,'adapter.mjs')));
@@ -33,5 +35,13 @@ assert.throws(()=>engine.generate({mode:'question',exam:'RMO',type:'numeric'}),/
 assert.throws(()=>engine.generate({mode:'mock',topic:'geometry',type:'numeric',count:10}),/distinct/);
 assert.throws(()=>engine.generate({mode:'chapter',topic:'all'}),/chapter/);
 assert.equal(engine.resolve({id:questionBank[0].id,solution:'forged'}),null);
+// Seeds over 249 UTF-16 units get the JavaScript and native message; 249 units still fit a one-question mock.
+const message=generate=>{try{generate();}catch(error){return error.message;}assert.fail('Expected the seed to be rejected.');};
+for(const seed of ['a'.repeat(250),'😀'.repeat(125)]) {
+  assert.equal(message(()=>engine.generate({mode:'question',seed})),message(()=>generateQuestion({seed})));
+  assert.equal(message(()=>engine.generate({mode:'mock',seed})),message(()=>generateMock({seed})));
+}
+same(engine.generate({mode:'mock',seed:'a'.repeat(249),count:1}),generateMock({seed:'a'.repeat(249),count:1}));
+assert.throws(()=>engine.generate({mode:'question',seed:'\ud800'}),/valid text seed/);
 same(engine.generate({mode:'question'}),generateQuestion());
 console.log('Verified full bank, 48 bank references, '+checks+' variant/mock/reference comparisons and malformed input recovery.');
