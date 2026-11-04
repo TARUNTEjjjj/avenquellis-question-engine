@@ -28,6 +28,19 @@ test('RMO mocks stay within elementary olympiad topics',()=>{
 test('invalid requests fail early',()=>{
  for(const o of [{count:0},{count:31},{count:2.5},{topic:'physics'},{difficulty:'unknown'},{exam:'JEE'}]) assert.throws(()=>generateMock(o),RangeError);
 });
+test('all generated seed types can cross the native boundary without coercion or Unicode replacement',()=>{
+ for(const seed of [null,true,false,{},[],1.5,NaN,Infinity,-Infinity,9007199254740992,-9007199254740992,'\ud800','\udc00','x\ud800y']) {
+  for(const generate of [generateQuestion,generateMock]) assert.throws(()=>generate({seed}),/valid text seed or a safe integer/);
+ }
+ for(const seed of ['',0,-0,Number.MAX_SAFE_INTEGER,Number.MIN_SAFE_INTEGER,'π😀','�']) {
+  const q=generateQuestion({seed});
+  assert.deepEqual(resolveQuestionRef(referenceFor(q)),q);
+ }
+ // A matching ID alone cannot authorize a seed that cannot be encoded as UTF-8.
+ const seed='\ud800:variant';let hash=2166136261;
+ for(const char of seed)hash=Math.imul(hash^char.charCodeAt(0),16777619);
+ assert.equal(resolveQuestionRef({id:`number-gcd-${(hash>>>0).toString(36)}`,templateId:'number-gcd',seed,exam:'CMI',difficulty:'advanced'}),null);
+});
 test('numeric answers satisfy independent computations across 200 seeds',()=>{
  const seen=new Set();
  for(let seed=0;seed<200;seed++) for(const q of [...generateMock({count:30,seed}).questions,...questionBank]){
@@ -61,6 +74,18 @@ test('HTTP API decodes a UTF-8 character split across body chunks',async()=>{
   const result=await fetch(`http://127.0.0.1:${server.address().port}/generate`,{method:'POST',headers:{'content-type':'application/json'},body,duplex:'half'});
   assert.equal(result.status,200);assert.deepEqual(await result.json(),generateQuestion({seed:'π-week'}));
  } finally {await new Promise(resolve=>server.close(resolve));}
+});
+test('HTTP decoding refuses malformed bytes and does not echo invalid request contents',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=(body,type='application/json')=>fetch(`http://127.0.0.1:${server.address().port}/generate`,{method:'POST',headers:{'Content-Type':type},body});
+ for(const body of ['{"seed":S3CRET_PRIVATE_TEXT}',Buffer.concat([Buffer.from('{"seed":"'),Buffer.from([0xc3,0x28]),Buffer.from('"}')])]) {
+  const response=await post(body);assert.equal(response.status,400);
+  assert.deepEqual(await response.json(),{error:'Malformed UTF-8 JSON request.'});
+ }
+ assert.equal((await post('{}','application/json-malformed')).status,415);
+ assert.equal((await post('{}','Application/JSON; charset=utf-8')).status,200);
+ assert.equal((await post('{"seed":1.5}')).status,400);
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

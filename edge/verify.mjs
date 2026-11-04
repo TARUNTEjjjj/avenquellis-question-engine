@@ -43,5 +43,13 @@ for(const seed of ['a'.repeat(250),'😀'.repeat(125)]) {
 }
 same(engine.generate({mode:'mock',seed:'a'.repeat(249),count:1}),generateMock({seed:'a'.repeat(249),count:1}));
 assert.throws(()=>engine.generate({mode:'question',seed:'\ud800'}),/valid text seed/);
+for(const seed of [null,true,{},[],1.5,NaN,Infinity,9007199254740992,'\ud800','\udc00']) {
+  assert.equal(message(()=>engine.generate({mode:'question',seed})),message(()=>generateQuestion({seed})));
+  assert.equal(message(()=>engine.generate({mode:'mock',seed})),message(()=>generateMock({seed})));
+}
+for(const seed of [Number.MIN_SAFE_INTEGER,Number.MAX_SAFE_INTEGER,-0,'','�']) {
+  same(engine.generate({mode:'question',seed}),generateQuestion({seed}));
+  same(engine.generate({mode:'mock',seed,count:2}),generateMock({seed,count:2}));
+}
 same(engine.generate({mode:'question'}),generateQuestion());
 console.log('Verified full bank, 48 bank references, '+checks+' variant/mock/reference comparisons and malformed input recovery.');
