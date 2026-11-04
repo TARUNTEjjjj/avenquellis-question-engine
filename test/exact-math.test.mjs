@@ -6,7 +6,7 @@ import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {initExactMath,evaluateExact,checkExact,exactMathInfo} from '../browser/exact-math.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const build=process.env.AXIOM_BUILD_DIR?resolve(process.env.AXIOM_BUILD_DIR):resolve(root,'../../work/axiom-build');
+const build=process.env.AXIOM_BUILD_DIR?resolve(process.env.AXIOM_BUILD_DIR):resolve(root,'work','axiom-build');
 mkdirSync(build,{recursive:true});
 const vendor=join(root,'vendor/axiom-math');
 const native=join(build,'native-driver');
