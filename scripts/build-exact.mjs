@@ -8,7 +8,7 @@ const args=process.argv.slice(2);
 const option=(key,fallback)=>{const i=args.indexOf(key);if(i<0)return fallback;if(!args[i+1]||args[i+1].startsWith('--'))throw Error(`Missing value for ${key}`);return resolve(args[i+1]);};
 const nativeOnly=args.includes('--native-only');
 const buildDir=option('--build-dir',join(root,'work','exact-build'));
-const sdk=option('--emsdk',process.env.EMSDK ? resolve(process.env.EMSDK) : resolve(root,'../../work/emsdk'));
+const sdk=option('--emsdk',process.env.EMSDK ? resolve(process.env.EMSDK) : resolve(root,'work','emsdk'));
 const output=option('--out',join(root,'browser'));
 const python=option('--python',process.env.EMSDK_PYTHON);
 const vendor=join(root,'vendor','axiom-math');

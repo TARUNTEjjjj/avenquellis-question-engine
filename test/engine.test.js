@@ -52,6 +52,16 @@ test('HTTP API generates mocks and rejects malformed inputs',async()=>{
   const invalid=await fetch(`${base}/generate`,{method:'POST',headers:{'content-type':'application/json'},body:'{"topic":"invalid"}'});assert.equal(invalid.status,400);
  } finally {await new Promise(resolve=>server.close(resolve));}
 });
+test('HTTP API decodes a UTF-8 character split across body chunks',async()=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try {
+  const bytes=new TextEncoder().encode(JSON.stringify({seed:'π-week'})),split=bytes.indexOf(0xcf)+1;
+  // Send the two bytes of π in separate chunks.
+  const body=new ReadableStream({async start(controller){controller.enqueue(bytes.subarray(0,split));await new Promise(resolve=>setTimeout(resolve,50));controller.enqueue(bytes.subarray(split));controller.close();}});
+  const result=await fetch(`http://127.0.0.1:${server.address().port}/generate`,{method:'POST',headers:{'content-type':'application/json'},body,duplex:'half'});
+  assert.equal(result.status,200);assert.deepEqual(await result.json(),generateQuestion({seed:'π-week'}));
+ } finally {await new Promise(resolve=>server.close(resolve));}
+});
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{
  const options={topic:'number-theory',difficulty:'olympiad',count:12,seed:42};
@@ -121,4 +131,20 @@ test('server rejects tampered and oversized question references before reconstru
   const bank = referenceFor(questionBank[0]);
   assert.equal(resolveQuestionRef({...bank, seed: 'wrong'}), null);
   assert.equal(resolveQuestionRef({...bank, templateId: 'wrong'}), null);
+});
+
+test('seeds stay within the native 256-unit reference limit instead of producing unresolvable questions', () => {
+  // A 249-unit seed fits a one-question mock (":mock:0"), and 248 units fit a question (":variant").
+  const longest = generateMock({seed: 'a'.repeat(249), count: 1}).questions[0];
+  assert.equal(longest.generator.seed.length, 256);
+  assert.deepEqual(resolveQuestionRef(referenceFor(longest)), longest);
+  const question = generateQuestion({seed: 'a'.repeat(248)});
+  assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+  for (const generate of [generateQuestion, generateMock]) {
+    assert.throws(() => generate({seed: 'a'.repeat(250)}), /^RangeError: Seed is too long for a 256-unit question reference\.$/);
+  }
+  // ":variant" and ":mock:10" would make 257-unit seeds that resolveQuestionRef rejects.
+  for (const generate of [() => generateQuestion({seed: 'a'.repeat(249)}), () => generateMock({seed: 'a'.repeat(249), count: 11})]) {
+    assert.throws(generate, /^RangeError: A complete variant seed may use at most 256 UTF-16 code units\.$/);
+  }
 });
