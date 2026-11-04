@@ -11,6 +11,8 @@ function compare(args, expected) {
   const run = raw(args);
   assert.equal(run.status, 0, run.stderr || String(run.error));
   assert.deepEqual(JSON.parse(run.stdout), expected, args.join(' '));
+  // deepEqual ignores key order; the serialized text must match as well.
+  assert.equal(run.stdout.trimEnd(), JSON.stringify(expected), args.join(' '));
   comparisons++;
 }
 function reject(args) {
