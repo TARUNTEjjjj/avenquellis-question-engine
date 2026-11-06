@@ -12,7 +12,9 @@ const rub = (...steps) => {
  return steps.map((description,i)=>({id:`step-${i+1}`,description,points:weights[i]}));
 };
 const gcd = (a,b) => b ? gcd(b,a%b) : Math.abs(a);
-export const choose = (n,k) => { let r=1; for(let i=1;i<=Math.min(k,n-k);i++) r = r*(n-i+1)/i; return Math.round(r); };
+// Divide by g=gcd(r,i) before multiplying. Both quotients in (r/g)*((n-i+1)/(i/g)) are integers,
+// so each step is exact whenever C(n,i), and therefore the final C(n,k), is a safe integer.
+export const choose = (n,k) => { let r=1; for(let i=1;i<=Math.min(k,n-k);i++) {const g=gcd(r,i); r=(r/g)*((n-i+1)/(i/g));} return Math.round(r); };
 const divisors = n => Array.from({length:n},(_,i)=>i+1).filter(d=>n%d===0);
 const fract = (a,b) => { const g=gcd(a,b); return b/g===1 ? `${a/g}` : `${a/g}/${b/g}`; };
 function hash(value) { let h=2166136261; for(const c of String(value)) {h^=c.charCodeAt(0);h=Math.imul(h,16777619);} return h>>>0; }

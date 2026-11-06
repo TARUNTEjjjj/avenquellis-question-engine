@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {request} from 'node:http';
-import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef} from '../src/index.js';
+import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
 test('generation is deterministic and mock IDs account for configuration',()=>{
@@ -69,6 +69,14 @@ test('numeric answers satisfy independent computations across 200 seeds',()=>{
   if(q.templateId==='probability-bayes') {let numerator=0,denominator=0;for(let i=1;i<2**p.n;i++){denominator++;if((i&(i-1))===0)numerator++;}const[a,b='1']=String(q.answer).split('/');assert.equal(Number(a)*denominator,Number(b)*numerator);}
  }
  assert.equal(seen.size,48);
+});
+test('choose is exact whenever the binomial coefficient is a safe integer',()=>{
+ // Rows of Pascal's triangle in BigInt are the oracle.
+ let row=[1n];
+ for(let n=0;n<=100;n++) {
+  for(let k=0;k<=n;k++) if(row[k]<=BigInt(Number.MAX_SAFE_INTEGER)) assert.equal(choose(n,k),Number(row[k]),`C(${n},${k})`);
+  row=[1n,...row.slice(1).map((value,i)=>value+row[i]),1n];
+ }
 });
 test('HTTP API generates mocks and rejects malformed inputs',async()=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
