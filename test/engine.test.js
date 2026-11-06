@@ -28,6 +28,19 @@ test('RMO mocks stay within elementary olympiad topics',()=>{
 test('invalid requests fail early',()=>{
  for(const o of [{count:0},{count:31},{count:2.5},{topic:'physics'},{difficulty:'unknown'},{exam:'JEE'}]) assert.throws(()=>generateMock(o),RangeError);
 });
+test('only a missing selector or count takes its default, as in the native engine',()=>{
+ for(const generate of [generateQuestion,generateMock]) {
+  for(const option of ['exam','difficulty','type']) assert.throws(()=>generate({[option]:''}),/^RangeError: Unknown /,option);
+  for(const change of [{exam:null},{exam:0},{exam:['isi']},{topic:null},{topic:false},{topic:['algebra']},{difficulty:false},{difficulty:['hard']},{type:0},{type:null}])
+   assert.throws(()=>generate(change),/^TypeError: \w+ must be a string\.$/,JSON.stringify(change));
+  // Inherited object keys are not difficulty aliases.
+  for(const difficulty of ['constructor','toString','__proto__']) assert.throws(()=>generate({difficulty}),{name:'RangeError',message:`Unknown difficulty: ${difficulty}`});
+ }
+ assert.throws(()=>generateMock({count:null}),RangeError);
+ // An empty topic selects every topic, as "all" does natively.
+ assert.deepEqual(generateQuestion({topic:''}),generateQuestion({topic:'all'}));
+ assert.deepEqual(generateMock({topic:'',count:3}),generateMock({topic:'all',count:3}));
+});
 test('all generated seed types can cross the native boundary without coercion or Unicode replacement',()=>{
  for(const seed of [null,true,false,{},[],1.5,NaN,Infinity,-Infinity,9007199254740992,-9007199254740992,'\ud800','\udc00','x\ud800y']) {
   for(const generate of [generateQuestion,generateMock]) assert.throws(()=>generate({seed}),/valid text seed or a safe integer/);
@@ -86,6 +99,14 @@ test('HTTP decoding refuses malformed bytes and does not echo invalid request co
  assert.equal((await post('{}','application/json-malformed')).status,415);
  assert.equal((await post('{}','Application/JSON; charset=utf-8')).status,200);
  assert.equal((await post('{"seed":1.5}')).status,400);
+});
+test('HTTP API returns 400 for empty, null and non-string selectors and a null count',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=(path,body)=>fetch(`http://127.0.0.1:${server.address().port}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+ for(const body of ['{"exam":""}','{"difficulty":""}','{"type":""}','{"exam":["isi"]}','{"difficulty":["hard"]}','{"exam":null,"difficulty":false,"type":0}'])
+  assert.equal((await post('/generate',body)).status,400,body);
+ assert.equal((await post('/mock','{"count":null}')).status,400);
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

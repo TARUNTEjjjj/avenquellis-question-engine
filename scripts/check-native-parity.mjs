@@ -79,4 +79,12 @@ for (const args of [
   ['question','--seed','a','--seed-number','2'], ['question','--topic'], ['question','--count','1'],
   ['replay','--family','geometry-inradius','--variant-seed','demo','--exam','RMO']
 ]) reject(args);
+// Only a missing selector takes its default. An empty exam, difficulty or type is rejected by both,
+// while an empty topic selects every topic.
+for (const option of ['exam', 'difficulty', 'type']) {
+  reject(['question', '--' + option, '']);
+  assert.throws(() => generateQuestion({[option]: ''}), RangeError, option);
+}
+compare(['question', '--topic', ''], generateQuestion({topic: ''}));
+compare(['mock', '--topic', '', '--count', '3'], generateMock({topic: '', count: 3}));
 console.log(`Verified ${comparisons} native JSON comparisons across every bank family, chapter, track and mock size.`);

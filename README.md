@@ -98,7 +98,7 @@ const question = generateQuestion({topic:'number-theory', difficulty:'olympiad',
 const mock = generateMock({exam:'ISI', topic:'all', difficulty:'advanced', count:8, seed:17});
 ```
 
-The JavaScript API uses the same seed contract as the native engine: well-formed Unicode strings or safe integers. Fractional numbers, booleans, objects, null and unpaired surrogates are rejected rather than coerced into a different seed.
+The JavaScript API uses the same seed contract as the native engine: well-formed Unicode strings or safe integers. Fractional numbers, booleans, objects, null and unpaired surrogates are rejected rather than coerced into a different seed. The other options follow the native rules too: only an omitted `topic`, `exam`, `difficulty`, `type` or `count` takes its default. These four selectors must be strings, so null, numbers, booleans and arrays are rejected, as are an empty exam, difficulty or type. An empty topic selects all topics.
 
 `src/index.js` works unchanged in browsers. It exports `topics`, `topicLabels`, `difficulties`, `exams`, `engineInfo`, `questionBank`, `generateQuestion`, `generateMock`, `getQuestion`, `resolveQuestionRef` (rebuilds a saved bank or generated reference, or returns `null`), and `choose`. Optional `type` selects `all`, `proof`, or `numeric`; RMO defaults to and enforces proof questions.
 

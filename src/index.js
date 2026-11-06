@@ -54,16 +54,25 @@ function wellFormed(text) {
  }
  return true;
 }
+// Match the native options: only a missing selector takes its default, and a present one must be a string.
+function selector(opts,name,fallback) {
+ const value=opts[name];
+ if(value!==undefined && typeof value!=='string') throw new TypeError(`${name} must be a string.`);
+ return value===undefined?fallback:value;
+}
 function normalize(opts={}) {
- const topic = opts.topic && opts.topic!=='all' && opts.topic!=='mixed' ? opts.topic : null;
+ // An empty topic selects every topic, as it does natively.
+ const requestedTopic=selector(opts,'topic','all');
+ const topic = requestedTopic && requestedTopic!=='all' && requestedTopic!=='mixed' ? requestedTopic : null;
  if(topic && !topics.includes(topic)) throw new RangeError(`Unknown topic: ${topic}`);
  const aliases={easy:'foundation',medium:'advanced',hard:'olympiad',challenge:'olympiad'};
- const difficulty=aliases[opts.difficulty]||opts.difficulty||'advanced';
+ const requestedDifficulty=selector(opts,'difficulty','advanced');
+ const difficulty=Object.hasOwn(aliases,requestedDifficulty)?aliases[requestedDifficulty]:requestedDifficulty;
  if(!difficulties.includes(difficulty)) throw new RangeError(`Unknown difficulty: ${difficulty}`);
- const exam=String(opts.exam||'CMI').toUpperCase();
+ const exam=selector(opts,'exam','CMI').toUpperCase();
  if(!exams.includes(exam)) throw new RangeError(`Unknown exam: ${exam}`);
  if(exam==='RMO' && ['calculus','probability'].includes(topic)) throw new RangeError('RMO practice excludes calculus and probability. Choose algebra, number theory, geometry, or combinatorics.');
- const type=opts.type||(exam==='RMO'?'proof':'all');
+ const type=selector(opts,'type',exam==='RMO'?'proof':'all');
  if(!['all','proof','numeric'].includes(type)) throw new RangeError(`Unknown question type: ${type}`);
  if(exam==='RMO' && type==='numeric') throw new RangeError('RMO mock practice uses proof questions. Choose proof format.');
  // Match the native limits: a generator seed adds at least seven units (":mock:0") and must fit in 256.
@@ -89,7 +98,7 @@ export function generateQuestion(opts={}) {
 }
 /** Balanced original-practice mock, not an official exam-pattern replica. */
 export function generateMock(opts={}) {
- const o=normalize(opts), count=opts.count??6;
+ const o=normalize(opts), count=opts.count===undefined?6:opts.count;
  if(!Number.isInteger(count)||count<1||count>30) throw new RangeError('count must be an integer between 1 and 30');
  const all=poolFor(o),r=rng(o.seed),preferred=all.filter(t=>t.level===o.difficulty),rest=all.filter(t=>t.level!==o.difficulty);
  const shuffle=arr=>arr.map(t=>({t,key:r()})).sort((a,b)=>a.key-b.key).map(x=>x.t);
