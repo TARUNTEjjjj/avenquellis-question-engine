@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {request} from 'node:http';
+import {connect} from 'node:net';
 import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
@@ -124,10 +125,11 @@ test('HTTP API returns 400 for empty, null and non-string selectors and an inval
  // A single question ignores a valid count.
  assert.equal((await post('/generate','{"count":6}')).status,200);
 });
-// Upload on a fresh connection. The first complete response or connection error is the outcome.
-const upload=(port,start)=>new Promise(resolve=>{
+// Upload on a fresh connection, which Node requests with Connection: close. The first complete
+// response or connection error is the outcome.
+const upload=(port,start,{path='/generate',type='application/json'}={})=>new Promise(resolve=>{
  let outcome;
- const req=request({host:'127.0.0.1',port,path:'/generate',method:'POST',agent:false,headers:{'Content-Type':'application/json'}},res=>{
+ const req=request({host:'127.0.0.1',port,path,method:'POST',agent:false,headers:{'Content-Type':type}},res=>{
   res.on('error',()=>{});res.on('end',()=>{outcome??=res.statusCode;});res.resume();
  });
  req.on('error',error=>{outcome??=error.code;});
@@ -146,22 +148,53 @@ test('HTTP API delivers 413 for an oversized body instead of resetting the uploa
  // The service still reads a body of exactly 8 MiB to its end.
  assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),413);
 });
+for(const [status,options] of [[404,{path:'/nope'}],[415,{type:'text/plain'}]])
+ test(`HTTP API delivers ${status} for a large upload instead of resetting it`,async t=>{
+  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const post=body=>upload(server.address().port,req=>req.end(body),options);
+  assert.equal(await post('{}'),status);
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await post(Buffer.alloc(1_000_000,' ')));
+  assert.deepEqual(outcomes,Array(20).fill(status));
+  // The service still reads a body of exactly 8 MiB to its end.
+  assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),status);
+ });
+test('HTTP API answers 404 and 415 at once for a request without a body',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ // The first status line written for raw request bytes.
+ const status=bytes=>new Promise(resolve=>{
+  const socket=connect(server.address().port,'127.0.0.1');let text='';
+  socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+  socket.on('close',()=>resolve(Number(text.slice(9,12))));
+  socket.end(bytes);
+ });
+ // Without Content-Length or Transfer-Encoding, the bytes after the head are not a body. Node's
+ // http.request sends a GET or DELETE body this way. The 404 or 415 must come before Node's 400 for them.
+ for(const [expected,head] of [[404,'GET /nope'],[404,'DELETE /generate'],[415,'POST /generate']])
+  assert.equal(await status(`${head} HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\r\n{}`),expected,head);
+});
 test('HTTP API stops reading an upload that never ends',async t=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>server.close(resolve)));
- const chunk=Buffer.alloc(65536,' '),bound=64*1024*1024;let sent=0;
- const outcome=await upload(server.address().port,req=>{
-  const pump=()=>{
-   while(!req.destroyed) {
-    if(sent>=bound) return req.destroy();
-    sent+=chunk.length;
-    if(!req.write(chunk)) return req.once('drain',pump);
-   }
-  };
-  pump();
- });
- assert.ok(sent<bound,`the server read ${sent} bytes and was still reading`);
- assert.notEqual(outcome,200);
+ const chunk=Buffer.alloc(65536,' '),bound=64*1024*1024;
+ // This holds for an unknown path and a wrong content type too.
+ for(const options of [{},{path:'/nope'},{type:'text/plain'}]) {
+  let sent=0;
+  const outcome=await upload(server.address().port,req=>{
+   const pump=()=>{
+    while(!req.destroyed) {
+     if(sent>=bound) return req.destroy();
+     sent+=chunk.length;
+     if(!req.write(chunk)) return req.once('drain',pump);
+    }
+   };
+   pump();
+  },options);
+  assert.ok(sent<bound,`${JSON.stringify(options)}: the server read ${sent} bytes and was still reading`);
+  assert.notEqual(outcome,200);
+ }
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

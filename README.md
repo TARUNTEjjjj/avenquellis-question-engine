@@ -126,7 +126,7 @@ curl -X POST http://127.0.0.1:4101/mock \
   -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
 ```
 
-`POST /generate` accepts question options; `POST /mock` also accepts `count`. `POST /generate` rejects an invalid `count` as well and ignores a valid one. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413. The service reads an oversized body to its end before it answers, so the client receives the 413. It stops reading an upload after 8 MiB and closes the connection, so a client sending more may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
+`POST /generate` accepts question options; `POST /mock` also accepts `count`. `POST /generate` rejects an invalid `count` as well and ignores a valid one. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413; other paths and methods return 404. The service reads a request body to its end before it answers 404, 413 or 415, so the client receives that status. It stops reading an upload after 8 MiB and closes the connection, so a client sending more may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
 
 ## Official paper sources and chapter index
 
