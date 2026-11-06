@@ -59,8 +59,14 @@ for(const change of [{exam:''},{difficulty:''},{type:''},{exam:null},{exam:0},{e
     assert.throws(()=>generate(change),Error,mode+' '+JSON.stringify(change));
   }
 }
-assert.throws(()=>engine.generate({mode:'mock',count:null}),/Count/);
-assert.throws(()=>generateMock({count:null}),/count/);
+// A present count must be an integer from 1 to 30 in both modes. A single question ignores a valid count.
+for(const count of [null,0,31,2.5,'6',NaN,Infinity]) {
+  for(const [mode,generate] of [['question',generateQuestion],['mock',generateMock]]) {
+    assert.throws(()=>engine.generate({mode,count}),/Count/,mode+' count '+String(count));
+    assert.throws(()=>generate({count}),/count/,mode+' count '+String(count));
+  }
+}
+same(engine.generate({mode:'question',count:30}),generateQuestion({count:30}));
 same(engine.generate({mode:'question',topic:''}),generateQuestion({topic:''}));
 same(engine.generate({mode:'mock',topic:'',count:3}),generateMock({topic:'',count:3}));
 console.log('Verified full bank, 48 bank references, '+checks+' variant/mock/reference comparisons and malformed input recovery.');

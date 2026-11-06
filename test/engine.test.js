@@ -36,8 +36,12 @@ test('only a missing selector or count takes its default, as in the native engin
    assert.throws(()=>generate(change),/^TypeError: \w+ must be a string\.$/,JSON.stringify(change));
   // Inherited object keys are not difficulty aliases.
   for(const difficulty of ['constructor','toString','__proto__']) assert.throws(()=>generate({difficulty}),{name:'RangeError',message:`Unknown difficulty: ${difficulty}`});
+  // A present count must be an integer from 1 to 30, for a single question too, as in the edge API.
+  for(const count of [null,0,31,-1,2.5,NaN,Infinity,'6',true,false,[],[3]])
+   assert.throws(()=>generate({count}),{name:'RangeError',message:'count must be an integer between 1 and 30'},`${typeof count} ${String(count)}`);
  }
- assert.throws(()=>generateMock({count:null}),RangeError);
+ // A single question ignores a valid count, as question mode in the edge API does.
+ for(const count of [1,6,30]) assert.deepEqual(generateQuestion({count}),generateQuestion());
  // An empty topic selects every topic, as "all" does natively.
  assert.deepEqual(generateQuestion({topic:''}),generateQuestion({topic:'all'}));
  assert.deepEqual(generateMock({topic:'',count:3}),generateMock({topic:'all',count:3}));
@@ -109,13 +113,16 @@ test('HTTP decoding refuses malformed bytes and does not echo invalid request co
  assert.equal((await post('{}','Application/JSON; charset=utf-8')).status,200);
  assert.equal((await post('{"seed":1.5}')).status,400);
 });
-test('HTTP API returns 400 for empty, null and non-string selectors and a null count',async t=>{
+test('HTTP API returns 400 for empty, null and non-string selectors and an invalid count',async t=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>server.close(resolve)));
  const post=(path,body)=>fetch(`http://127.0.0.1:${server.address().port}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body});
  for(const body of ['{"exam":""}','{"difficulty":""}','{"type":""}','{"exam":["isi"]}','{"difficulty":["hard"]}','{"exam":null,"difficulty":false,"type":0}'])
   assert.equal((await post('/generate',body)).status,400,body);
- assert.equal((await post('/mock','{"count":null}')).status,400);
+ for(const path of ['/generate','/mock']) for(const body of ['{"count":null}','{"count":0}','{"count":31}','{"count":"6"}'])
+  assert.equal((await post(path,body)).status,400,path+' '+body);
+ // A single question ignores a valid count.
+ assert.equal((await post('/generate','{"count":6}')).status,200);
 });
 // Upload on a fresh connection. The first complete response or connection error is the outcome.
 const upload=(port,start)=>new Promise(resolve=>{

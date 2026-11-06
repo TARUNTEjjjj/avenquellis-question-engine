@@ -98,7 +98,7 @@ const question = generateQuestion({topic:'number-theory', difficulty:'olympiad',
 const mock = generateMock({exam:'ISI', topic:'all', difficulty:'advanced', count:8, seed:17});
 ```
 
-The JavaScript API uses the same seed contract as the native engine: well-formed Unicode strings or safe integers. Fractional numbers, booleans, objects, null and unpaired surrogates are rejected rather than coerced into a different seed. The other options follow the native rules too: only an omitted `topic`, `exam`, `difficulty`, `type` or `count` takes its default. These four selectors must be strings, so null, numbers, booleans and arrays are rejected, as are an empty exam, difficulty or type. An empty topic selects all topics.
+The JavaScript API uses the same seed contract as the native engine: well-formed Unicode strings or safe integers. Fractional numbers, booleans, objects, null and unpaired surrogates are rejected rather than coerced into a different seed. The other options follow the native rules too: only an omitted `topic`, `exam`, `difficulty`, `type` or `count` takes its default. These four selectors must be strings, so null, numbers, booleans and arrays are rejected, as are an empty exam, difficulty or type. An empty topic selects all topics. A `count` that is present must be an integer from 1 to 30. `generateQuestion` applies the same check and then ignores the count, as question mode in the web API does.
 
 `src/index.js` works unchanged in browsers. It exports `topics`, `topicLabels`, `difficulties`, `exams`, `engineInfo`, `questionBank`, `generateQuestion`, `generateMock`, `getQuestion`, `resolveQuestionRef` (rebuilds a saved bank or generated reference, or returns `null`), and `choose`. Optional `type` selects `all`, `proof`, or `numeric`; RMO defaults to and enforces proof questions.
 
@@ -126,7 +126,7 @@ curl -X POST http://127.0.0.1:4101/mock \
   -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
 ```
 
-`POST /generate` accepts question options; `POST /mock` also accepts `count`. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413. The service reads an oversized body to its end before it answers, so the client receives the 413. It stops reading an upload after 8 MiB and closes the connection, so a client sending more may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
+`POST /generate` accepts question options; `POST /mock` also accepts `count`. `POST /generate` rejects an invalid `count` as well and ignores a valid one. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413. The service reads an oversized body to its end before it answers, so the client receives the 413. It stops reading an upload after 8 MiB and closes the connection, so a client sending more may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
 
 ## Official paper sources and chapter index
 

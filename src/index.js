@@ -83,6 +83,13 @@ function normalize(opts={}) {
  if(typeof seed==='string'?!wellFormed(seed):!Number.isSafeInteger(seed)) throw new TypeError('Use a valid text seed or a safe integer.');
  return {topic,difficulty,exam,type:exam==='RMO'?'proof':type,seed};
 }
+// Only a missing count takes its default, and a present one must be an integer from 1 to 30.
+// The edge API applies this rule in question mode too, where a valid count is then ignored.
+function countOf(opts) {
+ const count=opts.count===undefined?6:opts.count;
+ if(!Number.isInteger(count)||count<1||count>30) throw new RangeError('count must be an integer between 1 and 30');
+ return count;
+}
 function materialize(template,options,variantSeed) {
  if(String(variantSeed).length>256) throw new RangeError('A complete variant seed may use at most 256 UTF-16 code units.');
  const q=template.make(rng(variantSeed));
@@ -95,13 +102,14 @@ function poolFor(o) {
 }
 /** Deterministic generation; difficulty is best-fit with actual level disclosed. */
 export function generateQuestion(opts={}) {
- const o=normalize(opts),all=poolFor(o),preferred=all.filter(t=>t.level===o.difficulty),pool=preferred.length?preferred:all,r=rng(o.seed);
+ const o=normalize(opts);
+ countOf(opts);
+ const all=poolFor(o),preferred=all.filter(t=>t.level===o.difficulty),pool=preferred.length?preferred:all,r=rng(o.seed);
  return materialize(pool[int(r,0,pool.length-1)],o,`${o.seed}:variant`);
 }
 /** Balanced original-practice mock, not an official exam-pattern replica. */
 export function generateMock(opts={}) {
- const o=normalize(opts), count=opts.count===undefined?6:opts.count;
- if(!Number.isInteger(count)||count<1||count>30) throw new RangeError('count must be an integer between 1 and 30');
+ const o=normalize(opts), count=countOf(opts);
  const all=poolFor(o),r=rng(o.seed),preferred=all.filter(t=>t.level===o.difficulty),rest=all.filter(t=>t.level!==o.difficulty);
  const shuffle=arr=>arr.map(t=>({t,key:r()})).sort((a,b)=>a.key-b.key).map(x=>x.t);
  const pool=[...shuffle(preferred),...shuffle(rest)];
