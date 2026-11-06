@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {request} from 'node:http';
 import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
@@ -107,6 +108,45 @@ test('HTTP API returns 400 for empty, null and non-string selectors and a null c
  for(const body of ['{"exam":""}','{"difficulty":""}','{"type":""}','{"exam":["isi"]}','{"difficulty":["hard"]}','{"exam":null,"difficulty":false,"type":0}'])
   assert.equal((await post('/generate',body)).status,400,body);
  assert.equal((await post('/mock','{"count":null}')).status,400);
+});
+// Upload on a fresh connection. The first complete response or connection error is the outcome.
+const upload=(port,start)=>new Promise(resolve=>{
+ let outcome;
+ const req=request({host:'127.0.0.1',port,path:'/generate',method:'POST',agent:false,headers:{'Content-Type':'application/json'}},res=>{
+  res.on('error',()=>{});res.on('end',()=>{outcome??=res.statusCode;});res.resume();
+ });
+ req.on('error',error=>{outcome??=error.code;});
+ req.on('close',()=>resolve(outcome??'incomplete'));
+ start(req);
+});
+test('HTTP API delivers 413 for an oversized body instead of resetting the upload',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=body=>upload(server.address().port,req=>req.end(body));
+ assert.equal(await post('{}'+' '.repeat(16382)),200);
+ assert.equal(await post('{}'+' '.repeat(16383)),413);
+ const outcomes=[];
+ for(let i=0;i<20;i++) outcomes.push(await post(Buffer.alloc(1_000_000,' ')));
+ assert.deepEqual(outcomes,Array(20).fill(413));
+ // The service still reads a body of exactly 8 MiB to its end.
+ assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),413);
+});
+test('HTTP API stops reading an upload that never ends',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const chunk=Buffer.alloc(65536,' '),bound=64*1024*1024;let sent=0;
+ const outcome=await upload(server.address().port,req=>{
+  const pump=()=>{
+   while(!req.destroyed) {
+    if(sent>=bound) return req.destroy();
+    sent+=chunk.length;
+    if(!req.write(chunk)) return req.once('drain',pump);
+   }
+  };
+  pump();
+ });
+ assert.ok(sent<bound,`the server read ${sent} bytes and was still reading`);
+ assert.notEqual(outcome,200);
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

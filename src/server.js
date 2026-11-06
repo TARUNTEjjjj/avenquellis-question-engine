@@ -12,8 +12,16 @@ export function createApp() {
    if(req.method==='GET' && url.pathname==='/bank') return send(200,{questions:questionBank});
    if(req.method!=='POST'||!['/generate','/mock'].includes(url.pathname)) return send(404,{error:'Not found'});
    if((req.headers['content-type']||'').split(';',1)[0].trim().toLowerCase()!=='application/json') return send(415,{error:'Use application/json'});
+   // Read an oversized body to its end before answering 413. Leaving the loop early destroys the
+   // socket while the client is still sending, and the client then often gets a reset, not the 413.
+   // Past 8 MiB the upload is cut off so that an endless body cannot keep the server reading.
    const chunks=[];let size=0;
-   for await(const chunk of req) {size+=chunk.length;if(size>16384) return send(413,{error:'Request too large'});chunks.push(chunk);}
+   for await(const chunk of req) {
+    size+=chunk.length;
+    if(size>8*1024*1024) return send(413,{error:'Request too large'});
+    if(size<=16384) chunks.push(chunk);
+   }
+   if(size>16384) return send(413,{error:'Request too large'});
    let options;
    try {options=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks))||'{}');}
    catch {return send(400,{error:'Malformed UTF-8 JSON request.'});}
