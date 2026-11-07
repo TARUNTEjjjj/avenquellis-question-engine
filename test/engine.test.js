@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef} from '../src/index.js';
+import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
 test('generation is deterministic and mock IDs account for configuration',()=>{
@@ -172,4 +172,15 @@ test('seeds stay within the native 256-unit reference limit instead of producing
   for (const generate of [() => generateQuestion({seed: 'a'.repeat(249)}), () => generateMock({seed: 'a'.repeat(249), count: 11})]) {
     assert.throws(generate, /^RangeError: A complete variant seed may use at most 256 UTF-16 code units\.$/);
   }
+});
+
+// The public helper must not round or silently invent a binomial coefficient.
+test('binomial helper handles empty selections, impossible selections and exact safe results',()=>{
+ assert.equal(choose(0,0),1);
+ assert.equal(choose(3,5),0);
+ assert.equal(choose(50,5),2118760);
+ assert.equal(choose(56,28),7648690600760440);
+ assert.equal(choose(60,5),choose(60,55));
+ for(const [n,k] of [[-1,0],[3,-1],[3.5,1],[3,1.5],[Infinity,0],[3,NaN],['3',1]])assert.throws(()=>choose(n,k),RangeError);
+ assert.throws(()=>choose(60,30),RangeError);
 });
