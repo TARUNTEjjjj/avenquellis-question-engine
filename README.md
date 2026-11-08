@@ -106,6 +106,8 @@ Topics: `algebra`, `number-theory`, `combinatorics`, `geometry`, `calculus`, `pr
 
 Difficulty: `foundation`, `advanced`, `olympiad`. Aliases `easy`, `medium`, `hard`, and `challenge` are accepted. Individual question selection prefers the requested level and discloses the actual template level as `difficulty`. Mock assembly prioritizes that level, then uses other levels for variety. RMO mixed sets exclude calculus and probability, and explicit requests for these combinations are rejected.
 
+`choose(n, k)` accepts nonnegative safe integers, returns zero when `k > n`, and computes exact binomial coefficients. Results above `Number.MAX_SAFE_INTEGER` throw rather than silently rounding.
+
 Every question has:
 
 - `id`, `title`, `statement`, `topic`, `difficulty`, `exam`, `type` (`proof` or `numeric`).
