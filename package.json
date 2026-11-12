@@ -5,11 +5,11 @@
   "type": "module",
   "exports": "./src/index.js",
   "scripts": {
-    "test": "node --test test/engine.test.js test/advanced-templates.test.js",
+    "test": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js",
     "start": "node src/server.js",
     "build:exact": "node scripts/build-exact.mjs",
     "test:exact": "node --test test/exact-math.test.mjs",
-    "test:all": "node --test test/engine.test.js test/advanced-templates.test.js test/exact-math.test.mjs"
+    "test:all": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/exact-math.test.mjs"
   },
   "engines": {
     "node": ">=20"
