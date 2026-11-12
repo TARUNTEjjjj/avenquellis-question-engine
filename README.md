@@ -128,7 +128,17 @@ curl -X POST http://127.0.0.1:4101/mock \
   -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
 ```
 
-`POST /generate` accepts question options; `POST /mock` also accepts `count`. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413. The engine intentionally does not call an external model or transmit learner answers.
+`POST /generate` accepts question options; `POST /mock` also accepts `count`. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413. An unfinished body returns 408 after 10 seconds and closes the connection. Embedders can set `createApp({bodyTimeoutMs})` from 10 to 60,000 milliseconds. Declared oversized bodies are rejected before buffering. The engine intentionally does not call an external model or transmit learner answers.
+
+Add `?view=practice` to `/generate`, `/mock`, or `/bank` for an answer-free practice sheet. This view includes statements, marks, metadata, and reproducible identities while omitting solutions, numeric answers, rubrics, and internal template parameters. The default `view=solutions` response is unchanged. For example:
+
+```sh
+curl -X POST 'http://127.0.0.1:4101/mock?view=practice' \
+  -H 'Content-Type: application/json' \
+  -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
+```
+
+Practice view controls presentation; it is not an exam access-control mechanism. The full solutions remain available from the same service and deterministic source library.
 
 ## Official paper sources and chapter index
 
