@@ -9,3 +9,7 @@ browser/build-info.json
 browser/source-commit.txt
 
 /build*/
+
+# Private transport cache; publish only the normalized resource snapshot.
+resources/*.cache.json
+resources/*.tmp

@@ -1,3 +1,4 @@
+import {handleResources} from './resources.js';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {generateQuestion, generateMock, topics, questionBank, engineInfo} from './index.js';
@@ -41,6 +42,7 @@ export function createApp({bodyTimeoutMs=10000}={}) {
  return createServer(async (req,res) => {
   const send=(status,data)=>{if(req.aborted||res.destroyed)return;if(!req.complete)res.shouldKeepAlive=false;res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
   try {
+   if (await handleResources(req, res)) return;
    const url=new URL(req.url,'http://localhost');
    if(req.method==='GET' && url.pathname==='/health') return send(200,{status:'ok',...engineInfo});
    if(req.method==='GET' && url.pathname==='/topics') return send(200,{topics});
