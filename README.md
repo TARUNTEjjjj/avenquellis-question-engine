@@ -157,3 +157,7 @@ The browser bundle exposes solutions so it is appropriate for self-study only. C
 ## Compiled exact arithmetic
 
 The browser module integrates the actual unchanged AxiomMath C++20 engine through WebAssembly. See [its API, pinned provenance, build instructions, and verification](docs/exact-math.md). This checks exact arithmetic equivalence, not mathematical proof correctness. Practice rubric point allocations are authored for this product and are not official CMI, ISI, or RMO grading weights.
+
+## GitHub resource collection
+
+Explore the project-specific [resource catalog](resources/README.md): curated references, star-ranked discovery, dated source metadata, cached failure recovery and an optional read-only server API. The repository includes a daily refresh workflow; hosted sites still follow their existing deployment process.
