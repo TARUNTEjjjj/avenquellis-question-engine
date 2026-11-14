@@ -10,6 +10,8 @@ export async function handleResources(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname !== '/api/resources') return false;
   const send = (status, body, headers = {}) => {
+    if (req.aborted || res.destroyed) return true;
+    if (!req.complete) res.shouldKeepAlive = false;
     res.writeHead(status, {'Content-Type':'application/json; charset=utf-8', 'X-Content-Type-Options':'nosniff', 'Cache-Control':'no-store', ...headers});
     res.end(JSON.stringify(body));
     return true;
