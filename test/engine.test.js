@@ -136,6 +136,16 @@ const upload=(port,start,{path='/generate',type='application/json'}={})=>new Pro
  req.on('close',()=>resolve(outcome??'incomplete'));
  start(req);
 });
+// The same upload on a raw socket, which keeps sending when the reply arrives. Any connection error is
+// the outcome, also one that comes after the reply.
+const rawUpload=(port,body,{path='/generate',type='application/json',chunked=false}={})=>new Promise(resolve=>{
+ const socket=connect(port,'127.0.0.1');let text='',failure;
+ socket.on('data',data=>{text+=data;});socket.on('error',error=>{failure??=error.code;});
+ socket.on('close',()=>resolve(failure??Number(text.slice(9,12))));
+ socket.write(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: ${type}\r\n`);
+ if(chunked) {socket.write(`Transfer-Encoding: chunked\r\n\r\n${body.length.toString(16)}\r\n`);socket.write(body);socket.write('\r\n0\r\n\r\n');}
+ else {socket.write(`Content-Length: ${body.length}\r\n\r\n`);socket.write(body);}
+});
 test('HTTP API delivers 413 for an oversized body instead of resetting the upload',async t=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>server.close(resolve)));
@@ -160,6 +170,28 @@ for(const [status,options] of [[404,{path:'/nope'}],[415,{type:'text/plain'}]])
   // The service still reads a body of exactly 8 MiB to its end.
   assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),status);
  });
+// A refused upload is answered before it has ended, so Node's client above has its status early and stops
+// looking. Whether the rest of the upload is still read shows on a socket that keeps sending: if the
+// service closed before the body had ended, that socket would be reset. A declared body is refused before
+// it is read and a streamed one while it is read, so both kinds are sent.
+test('HTTP API reads a refused upload to its end before it closes the connection',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const port=server.address().port,body=Buffer.alloc(1_000_000,' ');
+ const stream=options=>upload(port,req=>{req.write(body.subarray(0,65536));req.end(body.subarray(65536));},options);
+ for(const [status,options] of [[413,{}],[404,{path:'/nope'}],[415,{type:'text/plain'}]]) {
+  for(const chunked of [false,true]) {
+   const outcomes=[];
+   for(let i=0;i<20;i++) outcomes.push(await rawUpload(port,body,{...options,chunked}));
+   assert.deepEqual(outcomes,Array(20).fill(status),`${status}, chunked: ${chunked}`);
+   // A body of exactly 8 MiB is still read to its end.
+   assert.equal(await rawUpload(port,Buffer.alloc(8*1024*1024,' '),{...options,chunked}),status);
+  }
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await stream(options));
+  assert.deepEqual(outcomes,Array(20).fill(status),`${status}, streamed by Node's client`);
+ }
+});
 test('HTTP API answers 404 and 415 at once for a request without a body',async t=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>server.close(resolve)));
@@ -195,6 +227,52 @@ test('HTTP API stops reading an upload that never ends',async t=>{
   assert.ok(sent<bound,`${JSON.stringify(options)}: the server read ${sent} bytes and was still reading`);
   assert.notEqual(outcome,200);
  }
+ // The reply now comes before the upload is cut off, and Node's client stops sending once it has it. A
+ // socket that keeps sending regardless is cut off as well, with the status already delivered.
+ const frame=Buffer.concat([Buffer.from('10000\r\n'),chunk,Buffer.from('\r\n')]);
+ for(const [status,path,type] of [[413,'/generate','application/json'],[404,'/nope','application/json'],[415,'/generate','text/plain']]) {
+  let sent=0;
+  const outcome=await new Promise(resolve=>{
+   const socket=connect(server.address().port,'127.0.0.1');let text='';
+   socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+   socket.on('close',()=>resolve(Number(text.slice(9,12))));
+   socket.write(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\nTransfer-Encoding: chunked\r\n\r\n`);
+   const pump=()=>{
+    while(!socket.destroyed) {
+     if(sent>=bound) return socket.destroy();
+     sent+=chunk.length;
+     if(!socket.write(frame)) return socket.once('drain',pump);
+    }
+   };
+   pump();
+  });
+  assert.ok(sent<bound,`${path} ${type}: the server read ${sent} bytes and was still reading`);
+  assert.equal(outcome,status);
+ }
+});
+test('HTTP API answers a refused upload that stalls and closes its connection at the body deadline',{timeout:2000},async t=>{
+ const server=createApp({bodyTimeoutMs:200});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve);}));
+ const head=(path,type)=>`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\n`;
+ // One byte of a declared body of 20,000 bytes, or a streamed body one byte past the limit, and then nothing.
+ await Promise.all([
+  [413,head('/generate','application/json')+'Content-Length: 20000\r\n\r\n{'],
+  [413,head('/generate','application/json')+'Transfer-Encoding: chunked\r\n\r\n4001\r\n'+' '.repeat(16385)+'\r\n'],
+  [404,head('/nope','application/json')+'Content-Length: 20000\r\n\r\n{'],
+  [415,head('/generate','text/plain')+'Content-Length: 20000\r\n\r\n{'],
+ ].map(async([status,bytes])=>{
+  const started=performance.now();
+  const {text,closed}=await new Promise(resolve=>{
+   const socket=connect(server.address().port,'127.0.0.1');let text='';
+   socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+   socket.on('close',()=>resolve({text,closed:performance.now()-started}));
+   socket.write(bytes);
+  });
+  assert.equal(Number(text.slice(9,12)),status);
+  assert.match(text,/\r\nConnection: close\r\n/);
+  // The connection stays open for the rest of the upload until the deadline, which the test's timeout bounds.
+  assert.ok(closed>=150,`${status}: closed after ${Math.round(closed)} ms`);
+ }));
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

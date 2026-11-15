@@ -128,7 +128,17 @@ curl -X POST http://127.0.0.1:4101/mock \
   -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
 ```
 
-`POST /generate` accepts question options; `POST /mock` also accepts `count`. `POST /generate` rejects an invalid `count` as well and ignores a valid one. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413; other paths and methods return 404. The service reads a request body to its end before it answers 404, 413 or 415, so the client receives that status. It stops reading an upload after 8 MiB and closes the connection, so a client sending more may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
+`POST /generate` accepts question options; `POST /mock` also accepts `count`. `POST /generate` rejects an invalid `count` as well and ignores a valid one. Invalid JSON or invalid option values return 400; incorrect content type returns 415; bodies above 16 KB return 413; other paths and methods return 404, except that the [resource catalog](resources/README.md) route `/api/resources` answers methods other than GET with 405. An unfinished body returns 408 after 10 seconds and closes the connection. Embedders can set `createApp({bodyTimeoutMs})` from 10 to 60,000 milliseconds. Declared oversized bodies are rejected before buffering. The service answers 404, 413 and 415 without waiting for the end of the request body, and such a reply carries `Connection: close`. It then keeps reading and discarding the upload before it closes the connection, so a client that is still sending receives that status instead of a connection reset. It stops reading after 8 MiB more or when `bodyTimeoutMs` has passed since the request arrived, whichever comes first, so a client that sends more or stalls may see the connection reset instead. The engine intentionally does not call an external model or transmit learner answers.
+
+Add `?view=practice` to `/generate`, `/mock`, or `/bank` for an answer-free practice sheet. This view includes statements, marks, metadata, and reproducible identities while omitting solutions, numeric answers, rubrics, and internal template parameters. The default `view=solutions` response is unchanged. For example:
+
+```sh
+curl -X POST 'http://127.0.0.1:4101/mock?view=practice' \
+  -H 'Content-Type: application/json' \
+  -d '{"exam":"CMI","topic":"algebra","count":6,"seed":10}'
+```
+
+Practice view controls presentation; it is not an exam access-control mechanism. The full solutions remain available from the same service and deterministic source library.
 
 ## Official paper sources and chapter index
 
@@ -147,3 +157,7 @@ The browser bundle exposes solutions so it is appropriate for self-study only. C
 ## Compiled exact arithmetic
 
 The browser module integrates the actual unchanged AxiomMath C++20 engine through WebAssembly. See [its API, pinned provenance, build instructions, and verification](docs/exact-math.md). This checks exact arithmetic equivalence, not mathematical proof correctness. Practice rubric point allocations are authored for this product and are not official CMI, ISI, or RMO grading weights.
+
+## GitHub resource collection
+
+Explore the project-specific [resource catalog](resources/README.md): curated references, star-ranked discovery, dated source metadata, cached failure recovery and an optional read-only server API. The repository includes a daily refresh workflow; hosted sites still follow their existing deployment process.
