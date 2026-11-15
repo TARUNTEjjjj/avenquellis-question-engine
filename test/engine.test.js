@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {request} from 'node:http';
+import {connect} from 'node:net';
 import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
@@ -28,6 +30,23 @@ test('RMO mocks stay within elementary olympiad topics',()=>{
 test('invalid requests fail early',()=>{
  for(const o of [{count:0},{count:31},{count:2.5},{topic:'physics'},{difficulty:'unknown'},{exam:'JEE'}]) assert.throws(()=>generateMock(o),RangeError);
 });
+test('only a missing selector or count takes its default, as in the native engine',()=>{
+ for(const generate of [generateQuestion,generateMock]) {
+  for(const option of ['exam','difficulty','type']) assert.throws(()=>generate({[option]:''}),/^RangeError: Unknown /,option);
+  for(const change of [{exam:null},{exam:0},{exam:['isi']},{topic:null},{topic:false},{topic:['algebra']},{difficulty:false},{difficulty:['hard']},{type:0},{type:null}])
+   assert.throws(()=>generate(change),/^TypeError: \w+ must be a string\.$/,JSON.stringify(change));
+  // Inherited object keys are not difficulty aliases.
+  for(const difficulty of ['constructor','toString','__proto__']) assert.throws(()=>generate({difficulty}),{name:'RangeError',message:`Unknown difficulty: ${difficulty}`});
+  // A present count must be an integer from 1 to 30, for a single question too, as in the edge API.
+  for(const count of [null,0,31,-1,2.5,NaN,Infinity,'6',true,false,[],[3]])
+   assert.throws(()=>generate({count}),{name:'RangeError',message:'count must be an integer between 1 and 30'},`${typeof count} ${String(count)}`);
+ }
+ // A single question ignores a valid count, as question mode in the edge API does.
+ for(const count of [1,6,30]) assert.deepEqual(generateQuestion({count}),generateQuestion());
+ // An empty topic selects every topic, as "all" does natively.
+ assert.deepEqual(generateQuestion({topic:''}),generateQuestion({topic:'all'}));
+ assert.deepEqual(generateMock({topic:'',count:3}),generateMock({topic:'all',count:3}));
+});
 test('all generated seed types can cross the native boundary without coercion or Unicode replacement',()=>{
  for(const seed of [null,true,false,{},[],1.5,NaN,Infinity,-Infinity,9007199254740992,-9007199254740992,'\ud800','\udc00','x\ud800y']) {
   for(const generate of [generateQuestion,generateMock]) assert.throws(()=>generate({seed}),/valid text seed or a safe integer/);
@@ -55,6 +74,14 @@ test('numeric answers satisfy independent computations across 200 seeds',()=>{
   if(q.templateId==='probability-bayes') {let numerator=0,denominator=0;for(let i=1;i<2**p.n;i++){denominator++;if((i&(i-1))===0)numerator++;}const[a,b='1']=String(q.answer).split('/');assert.equal(Number(a)*denominator,Number(b)*numerator);}
  }
  assert.equal(seen.size,48);
+});
+test('choose is exact whenever the binomial coefficient is a safe integer',()=>{
+ // Rows of Pascal's triangle in BigInt are the oracle.
+ let row=[1n];
+ for(let n=0;n<=100;n++) {
+  for(let k=0;k<=n;k++) if(row[k]<=BigInt(Number.MAX_SAFE_INTEGER)) assert.equal(choose(n,k),Number(row[k]),`C(${n},${k})`);
+  row=[1n,...row.slice(1).map((value,i)=>value+row[i]),1n];
+ }
 });
 test('HTTP API generates mocks and rejects malformed inputs',async()=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -86,6 +113,187 @@ test('HTTP decoding refuses malformed bytes and does not echo invalid request co
  assert.equal((await post('{}','application/json-malformed')).status,415);
  assert.equal((await post('{}','Application/JSON; charset=utf-8')).status,200);
  assert.equal((await post('{"seed":1.5}')).status,400);
+});
+test('HTTP API returns 400 for empty, null and non-string selectors and an invalid count',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=(path,body)=>fetch(`http://127.0.0.1:${server.address().port}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+ for(const body of ['{"exam":""}','{"difficulty":""}','{"type":""}','{"exam":["isi"]}','{"difficulty":["hard"]}','{"exam":null,"difficulty":false,"type":0}'])
+  assert.equal((await post('/generate',body)).status,400,body);
+ for(const path of ['/generate','/mock']) for(const body of ['{"count":null}','{"count":0}','{"count":31}','{"count":"6"}'])
+  assert.equal((await post(path,body)).status,400,path+' '+body);
+ // A single question ignores a valid count.
+ assert.equal((await post('/generate','{"count":6}')).status,200);
+});
+// Upload on a fresh connection, which Node requests with Connection: close. The first complete
+// response or connection error is the outcome.
+const upload=(port,start,{path='/generate',type='application/json'}={})=>new Promise(resolve=>{
+ let outcome;
+ const req=request({host:'127.0.0.1',port,path,method:'POST',agent:false,headers:{'Content-Type':type}},res=>{
+  res.on('error',()=>{});res.on('end',()=>{outcome??=res.statusCode;});res.resume();
+ });
+ req.on('error',error=>{outcome??=error.code;});
+ req.on('close',()=>resolve(outcome??'incomplete'));
+ start(req);
+});
+// The same upload on a raw socket, which keeps sending when the reply arrives. Any connection error is
+// the outcome, also one that comes after the reply.
+const rawUpload=(port,body,{method='POST',path='/generate',type='application/json',chunked=false}={})=>new Promise(resolve=>{
+ const socket=connect(port,'127.0.0.1');let text='',failure;
+ socket.on('data',data=>{text+=data;});socket.on('error',error=>{failure??=error.code;});
+ socket.on('close',()=>resolve(failure??Number(text.slice(9,12))));
+ socket.write(`${method} ${path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: ${type}\r\n`);
+ if(chunked) {socket.write(`Transfer-Encoding: chunked\r\n\r\n${body.length.toString(16)}\r\n`);socket.write(body);socket.write('\r\n0\r\n\r\n');}
+ else {socket.write(`Content-Length: ${body.length}\r\n\r\n`);socket.write(body);}
+});
+test('HTTP API delivers 413 for an oversized body instead of resetting the upload',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=body=>upload(server.address().port,req=>req.end(body));
+ assert.equal(await post('{}'+' '.repeat(16382)),200);
+ assert.equal(await post('{}'+' '.repeat(16383)),413);
+ const outcomes=[];
+ for(let i=0;i<20;i++) outcomes.push(await post(Buffer.alloc(1_000_000,' ')));
+ assert.deepEqual(outcomes,Array(20).fill(413));
+ // The service still reads a body of exactly 8 MiB to its end.
+ assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),413);
+});
+for(const [status,options] of [[404,{path:'/nope'}],[415,{type:'text/plain'}]])
+ test(`HTTP API delivers ${status} for a large upload instead of resetting it`,async t=>{
+  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const post=body=>upload(server.address().port,req=>req.end(body),options);
+  assert.equal(await post('{}'),status);
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await post(Buffer.alloc(1_000_000,' ')));
+  assert.deepEqual(outcomes,Array(20).fill(status));
+  // The service still reads a body of exactly 8 MiB to its end.
+  assert.equal(await post(Buffer.alloc(8*1024*1024,' ')),status);
+ });
+// A refused upload is answered before it has ended, so Node's client above has its status early and stops
+// looking. Whether the rest of the upload is still read shows on a socket that keeps sending: if the
+// service closed before the body had ended, that socket would be reset. A declared body is refused before
+// it is read and a streamed one while it is read, so both kinds are sent.
+test('HTTP API reads a refused upload to its end before it closes the connection',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const port=server.address().port,body=Buffer.alloc(1_000_000,' ');
+ const stream=options=>upload(port,req=>{req.write(body.subarray(0,65536));req.end(body.subarray(65536));},options);
+ for(const [status,options] of [[413,{}],[404,{path:'/nope'}],[415,{type:'text/plain'}]]) {
+  for(const chunked of [false,true]) {
+   const outcomes=[];
+   for(let i=0;i<20;i++) outcomes.push(await rawUpload(port,body,{...options,chunked}));
+   assert.deepEqual(outcomes,Array(20).fill(status),`${status}, chunked: ${chunked}`);
+   // A body of exactly 8 MiB is still read to its end.
+   assert.equal(await rawUpload(port,Buffer.alloc(8*1024*1024,' '),{...options,chunked}),status);
+  }
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await stream(options));
+  assert.deepEqual(outcomes,Array(20).fill(status),`${status}, streamed by Node's client`);
+ }
+});
+// The practice view and the resource catalog refuse a large upload in the same way. The catalog also
+// answers a GET that carries a body while that body is still arriving.
+for(const [status,path,method='POST'] of [[413,'/generate?view=practice'],[413,'/mock?view=practice'],[404,'/bank?view=practice'],[400,'/mock?view=typo'],[405,'/api/resources'],[200,'/api/resources?limit=1','GET']])
+ test(`HTTP API delivers ${status} for a large upload to ${method} ${path} instead of resetting it`,async t=>{
+  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const port=server.address().port,body=Buffer.alloc(1_000_000,' ');
+  for(const chunked of [false,true]) {
+   const outcomes=[];
+   for(let i=0;i<20;i++) outcomes.push(await rawUpload(port,body,{method,path,chunked}));
+   assert.deepEqual(outcomes,Array(20).fill(status),`raw socket, chunked: ${chunked}`);
+  }
+  assert.equal(await rawUpload(port,Buffer.alloc(8*1024*1024,' '),{method,path}),status);
+  // Node's client sends a GET body without a length, which is not a body at all.
+  if(method!=='POST') return;
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await upload(port,req=>req.end(body),{path}));
+  assert.deepEqual(outcomes,Array(20).fill(status),"Node's client");
+ });
+test('HTTP API answers 404 and 415 at once for a request without a body',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ // The first status line written for raw request bytes.
+ const status=bytes=>new Promise(resolve=>{
+  const socket=connect(server.address().port,'127.0.0.1');let text='';
+  socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+  socket.on('close',()=>resolve(Number(text.slice(9,12))));
+  socket.end(bytes);
+ });
+ // Without Content-Length or Transfer-Encoding, the bytes after the head are not a body. Node's
+ // http.request sends a GET or DELETE body this way. The 404 or 415 must come before Node's 400 for them,
+ // and so must the catalog's 405.
+ for(const [expected,head] of [[404,'GET /nope'],[404,'DELETE /generate'],[415,'POST /generate'],[405,'DELETE /api/resources']])
+  assert.equal(await status(`${head} HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\r\n{}`),expected,head);
+});
+test('HTTP API stops reading an upload that never ends',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const chunk=Buffer.alloc(65536,' '),bound=64*1024*1024;
+ // This holds for an unknown path and a wrong content type too.
+ for(const options of [{},{path:'/nope'},{type:'text/plain'}]) {
+  let sent=0;
+  const outcome=await upload(server.address().port,req=>{
+   const pump=()=>{
+    while(!req.destroyed) {
+     if(sent>=bound) return req.destroy();
+     sent+=chunk.length;
+     if(!req.write(chunk)) return req.once('drain',pump);
+    }
+   };
+   pump();
+  },options);
+  assert.ok(sent<bound,`${JSON.stringify(options)}: the server read ${sent} bytes and was still reading`);
+  assert.notEqual(outcome,200);
+ }
+ // The reply now comes before the upload is cut off, and Node's client stops sending once it has it. A
+ // socket that keeps sending regardless is cut off as well, with the status already delivered.
+ const frame=Buffer.concat([Buffer.from('10000\r\n'),chunk,Buffer.from('\r\n')]);
+ for(const [status,path,type] of [[413,'/generate','application/json'],[404,'/nope','application/json'],[415,'/generate','text/plain']]) {
+  let sent=0;
+  const outcome=await new Promise(resolve=>{
+   const socket=connect(server.address().port,'127.0.0.1');let text='';
+   socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+   socket.on('close',()=>resolve(Number(text.slice(9,12))));
+   socket.write(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\nTransfer-Encoding: chunked\r\n\r\n`);
+   const pump=()=>{
+    while(!socket.destroyed) {
+     if(sent>=bound) return socket.destroy();
+     sent+=chunk.length;
+     if(!socket.write(frame)) return socket.once('drain',pump);
+    }
+   };
+   pump();
+  });
+  assert.ok(sent<bound,`${path} ${type}: the server read ${sent} bytes and was still reading`);
+  assert.equal(outcome,status);
+ }
+});
+test('HTTP API answers a refused upload that stalls and closes its connection at the body deadline',{timeout:2000},async t=>{
+ const server=createApp({bodyTimeoutMs:200});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve);}));
+ const head=(path,type)=>`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\n`;
+ // One byte of a declared body of 20,000 bytes, or a streamed body one byte past the limit, and then nothing.
+ await Promise.all([
+  [413,head('/generate','application/json')+'Content-Length: 20000\r\n\r\n{'],
+  [413,head('/generate','application/json')+'Transfer-Encoding: chunked\r\n\r\n4001\r\n'+' '.repeat(16385)+'\r\n'],
+  [404,head('/nope','application/json')+'Content-Length: 20000\r\n\r\n{'],
+  [415,head('/generate','text/plain')+'Content-Length: 20000\r\n\r\n{'],
+  [405,head('/api/resources','application/json')+'Content-Length: 20000\r\n\r\n{'],
+ ].map(async([status,bytes])=>{
+  const started=performance.now();
+  const {text,closed}=await new Promise(resolve=>{
+   const socket=connect(server.address().port,'127.0.0.1');let text='';
+   socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+   socket.on('close',()=>resolve({text,closed:performance.now()-started}));
+   socket.write(bytes);
+  });
+  assert.equal(Number(text.slice(9,12)),status);
+  assert.match(text,/\r\nConnection: close\r\n/);
+  // The connection stays open for the rest of the upload until the deadline, which the test's timeout bounds.
+  assert.ok(closed>=150,`${status}: closed after ${Math.round(closed)} ms`);
+ }));
 });
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{

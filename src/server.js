@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {generateQuestion, generateMock, topics, questionBank, engineInfo} from './index.js';
 
 const MAX_REQUEST_BYTES=16384;
+const MAX_DRAINED_BYTES=8*1024*1024;
 
 function readOptions(req,timeoutMs) {
  return new Promise((resolve,reject)=>{
@@ -30,6 +31,21 @@ function readOptions(req,timeoutMs) {
  });
 }
 
+// Reads and discards what is left of an upload, then calls done. It stops when the body ends or the
+// request closes, after MAX_DRAINED_BYTES or after timeoutMs, whichever comes first, so that an endless
+// or stalled body cannot keep the server reading.
+function drain(req,timeoutMs,done) {
+ let size=0;
+ const finish=()=>{
+  clearTimeout(timer);
+  req.removeListener('data',data);req.removeListener('end',finish);req.removeListener('close',finish);
+  done();
+ };
+ const data=chunk=>{size+=chunk.length;if(size>MAX_DRAINED_BYTES)finish();};
+ const timer=setTimeout(finish,timeoutMs);
+ req.on('data',data);req.on('end',finish);req.on('close',finish);req.resume();
+}
+
 // Deliberately allowlist fields so future solution metadata is not accidentally
 // included in a printable practice sheet. This is a display view, not access control.
 function practiceQuestion(question) {
@@ -40,10 +56,28 @@ function practiceQuestion(question) {
 export function createApp({bodyTimeoutMs=10000}={}) {
  if(!Number.isSafeInteger(bodyTimeoutMs)||bodyTimeoutMs<10||bodyTimeoutMs>60000)throw new RangeError('bodyTimeoutMs must be an integer from 10 to 60000.');
  return createServer(async (req,res) => {
-  const send=(status,data)=>{if(req.aborted||res.destroyed)return;if(!req.complete)res.shouldKeepAlive=false;res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
+  const deadline=performance.now()+bodyTimeoutMs;
+  // A request without Transfer-Encoding or a nonzero Content-Length has no body (RFC 9112, section 6.3).
+  // It is answered at once and keeps its connection: bytes after it start the next request, and if they
+  // are not valid HTTP, Node would otherwise answer 400 before this reply is sent.
+  const hasBody=req.headers['transfer-encoding']!==undefined||Number(req.headers['content-length'])>0;
+  const send=(status,data,headers={})=>{
+   if(req.aborted||res.destroyed)return;
+   const body=JSON.stringify(data),unfinished=hasBody&&!req.complete,left=Math.ceil(deadline-performance.now());
+   if(unfinished)res.shouldKeepAlive=false;
+   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Length':Buffer.byteLength(body),...headers});
+   if(!unfinished||left<=0)return res.end(body);
+   // The client is still uploading. The reply goes out now, complete, and announces that the connection
+   // will close. Closing it right away would often reset the connection while the client is sending,
+   // and the client would then get the reset, not the reply. So the rest of the upload is read first,
+   // within the bounds of drain and the body deadline, and only then does the response end.
+   res.write(body);
+   drain(req,left,()=>res.end());
+  };
   try {
-   if (await handleResources(req, res)) return;
    const url=new URL(req.url,'http://localhost');
+   // Only the catalog route waits here, so that every other reply to a request without a body is immediate.
+   if(url.pathname==='/api/resources'&&await handleResources(req,send)) return;
    if(req.method==='GET' && url.pathname==='/health') return send(200,{status:'ok',...engineInfo});
    if(req.method==='GET' && url.pathname==='/topics') return send(200,{topics});
    const view=url.searchParams.get('view')||'solutions';
