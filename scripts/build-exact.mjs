@@ -17,6 +17,12 @@ for(const [file,hash] of Object.entries(provenance.files)){
  const current=createHash('sha256').update(readFileSync(join(vendor,file))).digest('hex');
  if(current!==hash)throw Error(`Pinned AxiomMath source was modified: ${file}`);
 }
+// With --upstream <axiom-math clone>, also confirm that the pinned commit exists there with exactly these files.
+const upstream=option('--upstream');
+if(upstream)for(const file of Object.keys(provenance.files)){
+ const blob=spawnSync('git',['-C',upstream,'cat-file','blob',`${provenance.commit}:${file}`]);
+ if(blob.status!==0||!blob.stdout.equals(readFileSync(join(vendor,file))))throw Error(`Pinned AxiomMath commit ${provenance.commit} does not hold ${file} in ${upstream}`);
+}
 function run(bin,flags,env=process.env){const result=spawnSync(bin,flags,{stdio:'inherit',env});if(result.error)throw result.error;if(result.status!==0)throw Error(`${bin} failed with status ${result.status}`);}
 mkdirSync(buildDir,{recursive:true});mkdirSync(output,{recursive:true});
 const sources=[join(vendor,'src','rational.cpp'),join(vendor,'src','expression.cpp')];

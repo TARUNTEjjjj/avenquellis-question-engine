@@ -1,6 +1,8 @@
 import {handleResources} from './resources.js';
 import {createServer} from 'node:http';
-import {pathToFileURL} from 'node:url';
+import {realpathSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
 import {generateQuestion, generateMock, topics, questionBank, engineInfo} from './index.js';
 
 const MAX_REQUEST_BYTES=16384;
@@ -71,7 +73,10 @@ export function createApp({bodyTimeoutMs=10000}={}) {
    // will close. Closing it right away would often reset the connection while the client is sending,
    // and the client would then get the reset, not the reply. So the rest of the upload is read first,
    // within the bounds of drain and the body deadline, and only then does the response end.
-   res.write(body);
+   // Uncorking hands the reply over now. Node would otherwise hold it back until this turn ends, and drop it
+   // if the connection closes first, as it does in this same turn when the bytes after the head are not a
+   // valid body.
+   res.cork();res.write(body);res.uncork();
    drain(req,left,()=>res.end());
   };
   try {
@@ -92,7 +97,14 @@ export function createApp({bodyTimeoutMs=10000}={}) {
   } catch(error) { send(error.status||400,{error:error.message}); }
  });
 }
-if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
+// Node resolves the extension and any symlinks in the path of the script it runs, so compare that real
+// path with this module's own. Comparing import.meta.url with argv[1] as given never called listen() for
+// a path through a symlink, such as a current -> releases/N deployment, and the process exited with status 0.
+function startedDirectly() {
+ try {return realpathSync(createRequire(import.meta.url).resolve(process.argv[1]))===realpathSync(fileURLToPath(import.meta.url));}
+ catch {return false;}
+}
+if(process.argv[1] && startedDirectly()) {
  const port=Number(process.env.PORT||4101);
  createApp().listen(port,'127.0.0.1',()=>console.log(`Avenquellis question engine: http://127.0.0.1:${port}`));
 }

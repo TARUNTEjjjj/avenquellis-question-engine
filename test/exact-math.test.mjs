@@ -28,7 +28,8 @@ function batchNative(expressions){const result=spawnSync(native,[],{input:expres
 test('loaded artifact is WebAssembly and the same original C++ source is pinned',()=>{
  const bytes=readFileSync(join(root,'browser/axiom-math-runtime.wasm'));
  assert.deepEqual([...bytes.subarray(0,8)],[0,97,115,109,1,0,0,0]);assert.ok(WebAssembly.validate(bytes));
- assert.equal(exactMathInfo.implementation,'C++20 compiled to WebAssembly');assert.equal(exactMathInfo.version,'ae5b38257b7825db603ecd5c7b28ade32c1a613f');
+ // The module reports the upstream commit that PROVENANCE.json pins and the build records in build-info.json.
+ assert.equal(exactMathInfo.implementation,'C++20 compiled to WebAssembly');assert.equal(exactMathInfo.version,JSON.parse(readFileSync(join(vendor,'PROVENANCE.json'),'utf8')).commit);
 });
 test('browser artifact ships the notices of the toolchain that compiled it',()=>{
  const {toolchain}=JSON.parse(readFileSync(join(root,'browser/build-info.json'),'utf8'));
@@ -41,6 +42,17 @@ test('compiled WASM computes exact fractions, decimals, comparisons and worked s
  assert.equal(checkExact('1/3','0.333333333333333333').equivalent,false);
  const result=evaluateExact('(1/3 + 1/6) * 4');assert.equal(result.value,'2');
  assert.deepEqual(result.steps.map(s=>[s.expression,s.value]),[['1/3','1/3'],['1/6','1/6'],['1/3 + 1/6','1/2'],['(1/3 + 1/6) * 4','2']]);
+});
+test('worked steps stay bounded when every step repeats a long chain',()=>{
+ // Each step repeats the source of its whole subexpression. These 4096 bytes give 511 steps with 1.8 MB of
+ // text, once a 9.7 MB response. Steps are listed in order up to 64 KiB of JSON, and the rest are counted.
+ const expression='1'+'\v'.repeat(3073)+'+1'.repeat(511);
+ const [native]=batchNative([expression]),wasm=evaluateExact(expression);
+ assert.deepEqual(wasm,native);assert.equal(wasm.value,'512');
+ assert.ok(JSON.stringify(wasm).length<70000);
+ assert.ok(wasm.steps.length>0);assert.equal(wasm.steps.length+wasm.omittedSteps,511);
+ wasm.steps.forEach((step,i)=>assert.deepEqual(step,{expression:expression.slice(0,3076+2*i),value:String(i+2)}));
+ assert.equal('omittedSteps' in evaluateExact('1+2+3'),false);
 });
 test('600 generated expressions agree across WASM, native C++, and independent BigInt fractions',()=>{
  const cases=Array.from({length:600},()=>small());const nativeResults=batchNative(cases.map(c=>c.text));

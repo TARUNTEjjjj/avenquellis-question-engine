@@ -54,8 +54,14 @@ test('algebra inequalities and equality cases agree with direct computations',()
     assert.ok(Math.abs(values.reduce((s,x)=>s*x,1))<=2*k**3+1e-8);
   }
   for(const value of [0,0.5,0.999]){
-    const {roots}=make('advanced-algebra-integer-factorization',value).parameters;
-    for(const x of roots)assert.equal(roots.reduce((p,a)=>p*(x-a),1)-1,-1);
+    // Evaluate P from the factors in the statement: it is monic of degree n and equals −1 at each of the n
+    // distinct integers that the solution names.
+    const factorization=make('advanced-algebra-integer-factorization',value),{n,roots}=factorization.parameters;
+    const factors=[...factorization.statement.match(/^Let P\(x\)=(.+)−1\. Prove /)[1].matchAll(/\(x ([+−]) (\d+)\)|x/g)];
+    const P=x=>factors.reduce((product,[,sign,a])=>product*(sign===undefined?x:sign==='+'?x+Number(a):x-Number(a)),1)-1;
+    assert.equal(factors.length,n);assert.equal(new Set(roots).size,n);
+    assert.ok(factorization.solution.includes(`the ${n} distinct integers ${roots.join(', ')},`));
+    for(const x of roots)assert.equal(P(x),-1);
     const {k}=make('advanced-algebra-parallelogram-function',value).parameters;
     for(let m=-15;m<=15;m++)for(let n=-15;n<=15;n++)assert.equal(k*(m+n)**2+k*(m-n)**2,2*k*m*m+2*k*n*n);
   }

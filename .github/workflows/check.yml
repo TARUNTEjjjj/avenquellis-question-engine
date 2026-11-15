@@ -6,9 +6,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # edge/verify.mjs checks that release/edge names a source commit in this history, and
+          # scripts/check-content-versions.mjs reads the record at an earlier commit.
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
       - run: npm test
+      # Saved references resolve only to the content of their family@version, so a recorded content fingerprint
+      # never changes. Compare the record with the pull request's base, or with main's previous tip.
+      - if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/check-content-versions.mjs "$BASE"
       - run: node edge/verify.mjs release/edge

@@ -6,6 +6,10 @@
 
 namespace {
 std::string response;
+// A step repeats the source text of its whole subexpression, so in a long chain of operations every step
+// repeats most of the input: one 4 KiB expression could serialize to about 10 MB. Steps are listed in
+// evaluation order only until their JSON would pass this size, and the number left out is reported.
+constexpr std::size_t max_steps_json = 65536;
 std::string quote(const std::string_view value) {
     std::string result = "\"";
     constexpr char hex[] = "0123456789abcdef";
@@ -45,14 +49,20 @@ extern "C" const char* axiom_evaluate(const char* expression, const size_t lengt
     try {
         const auto result = axiom::math::evaluate(input(expression, length), true);
         response = "{\"ok\":true,\"value\":" + quote(result.value.str()) + ",\"steps\":[";
-        bool first = true;
+        const auto start = response.size();
+        std::size_t listed = 0;
         for (const auto& step : result.steps) {
-            if (!first) response += ',';
-            first = false;
-            response += "{\"expression\":" + quote(step.expression) +
-                        ",\"value\":" + quote(step.result.str()) + "}";
+            // Quoting never shortens text, so a step whose source alone does not fit is not quoted.
+            if (response.size() - start + step.expression.size() > max_steps_json) break;
+            const auto item = std::string(listed ? "," : "") + "{\"expression\":" + quote(step.expression) +
+                              ",\"value\":" + quote(step.result.str()) + "}";
+            if (response.size() - start + item.size() > max_steps_json) break;
+            response += item;
+            ++listed;
         }
-        response += "]}";
+        response += ']';
+        if (listed < result.steps.size()) response += ",\"omittedSteps\":" + std::to_string(result.steps.size() - listed);
+        response += '}';
     } catch (const axiom::math::ExpressionError& error) {
         response = error_json(error);
     } catch (const std::exception& error) {
