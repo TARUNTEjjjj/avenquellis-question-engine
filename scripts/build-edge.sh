@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# manifest.json records HEAD as the exact source commit, so the build runs in a Git checkout and its inputs
+# must not differ from that commit.
+commit="$(git rev-parse --verify HEAD)" || { echo "Run the build in a Git checkout: manifest.json records its source commit." >&2; exit 1; }
+if [ -n "$(git status --porcelain -- include src/native edge/bridge.cpp edge/adapter.mjs edge/THIRD-PARTY-NOTICES.txt scripts/build-edge.sh)" ]; then
+    echo "Commit the build inputs first: manifest.json would name $commit as their exact source." >&2
+    exit 1
+fi
 compiler="${EMXX:-em++}"
 "$compiler" --version | head -n 1 | grep -F '6.0.13'
 out="${1:-build-edge}"
@@ -11,7 +18,7 @@ mkdir -p "$out"
     -Iinclude src/native/catalog.cpp src/native/engine.cpp src/native/json.cpp edge/bridge.cpp -o "$out/avenquellis-questions.wasm"
 cp edge/adapter.mjs "$out/adapter.mjs"
 cp edge/THIRD-PARTY-NOTICES.txt "$out/THIRD-PARTY-NOTICES.txt"
-node --input-type=module - "$out" "$(git rev-parse HEAD)" <<'JS'
+node --input-type=module - "$out" "$commit" <<'JS'
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 const [folder,commit]=process.argv.slice(2),name='avenquellis-questions.wasm';

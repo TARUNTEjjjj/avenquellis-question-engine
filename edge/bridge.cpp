@@ -35,6 +35,7 @@ public:
         if (!field) throw std::invalid_argument("Missing field.");
         return std::move(*field);
     }
+    bool done() const { return pos_ == end_; }
     void finish() const {
         if (pos_ != end_) throw std::invalid_argument("Unexpected fields.");
     }
@@ -50,7 +51,10 @@ T integer(const std::string& text) {
 
 std::string execute(unsigned op, Fields fields) {
     if (op == 4) {
+        // id, templateId, seed, exam and difficulty, then the content version if the reference has one.
+        // A request without the version field is the five-field request of earlier adapters.
         Reference ref{fields.required(), fields.next(), fields.next(), fields.next(), fields.next()};
+        if (!fields.done()) ref.version = fields.next();
         fields.finish();
         const auto question = resolve_reference(ref);
         return question ? to_json(*question) : "null";

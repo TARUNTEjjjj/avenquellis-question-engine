@@ -32,6 +32,8 @@ struct Question {
     std::string id;
     std::string template_id;
     std::string seed;
+    // The version of the family's content (generator.version), which a saved reference carries.
+    std::string version;
     std::string title;
     std::string statement;
     std::string topic;
@@ -47,9 +49,15 @@ struct Question {
 };
 
 // A saved question reference contains identifiers, never a caller-supplied solution or rubric.
+// version is the question's content version (generator.version). A reference resolves only while its
+// family still has that version, so it never yields content that a later release changed. A reference
+// without a version names 0.1.0, the version of every question issued before references carried one.
 struct Reference {
     std::string id;
     std::optional<std::string> template_id, seed, exam, difficulty;
+    // The default member initializer keeps five-value initializers, written before references carried a
+    // version, free of missing-initializer warnings.
+    std::optional<std::string> version = std::nullopt;
 };
 
 struct Mock {
@@ -73,6 +81,8 @@ Mock generate_chapter(const Options& options, int count = 6);
 
 // Reconstruct a generated question using its returned template ID and generator seed.
 // Its canonical id is returned so an external caller can compare it with a saved id.
+// replay uses the current seed hash. resolve_reference also accepts a reference saved by an
+// earlier release whose seed contains a supplementary character, which hashed differently then.
 Question replay(const std::string& template_id, const std::string& variant_seed,
                 const std::string& exam, const std::string& requested_difficulty);
 

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
-project(AvenquellisQuestions VERSION 0.1.0 LANGUAGES CXX)
+# 0.2 added Question::version and Reference::version, which changed both structs' layout.
+project(AvenquellisQuestions VERSION 0.2.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(CTest)
@@ -10,6 +11,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 function(noether_check_target target)
     target_compile_features(${target} PUBLIC cxx_std_20)
+    # The sources are UTF-8 without a byte order mark. MSVC would otherwise read them, and encode their
+    # string literals, in the system code page.
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /utf-8)
+    endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow)
         if(NOETHER_WARNINGS_AS_ERRORS)
@@ -25,7 +31,10 @@ endfunction()
 add_library(noether_questions src/native/catalog.cpp src/native/engine.cpp src/native/json.cpp)
 add_library(AvenquellisQuestions::questions ALIAS noether_questions)
 add_library(NoetherQuestions::questions ALIAS noether_questions)
-set_target_properties(noether_questions PROPERTIES EXPORT_NAME questions)
+# Before 1.0 a minor release may change the public structs, so a shared library's soname carries the minor
+# version and a program built against other headers does not load it.
+set_target_properties(noether_questions PROPERTIES EXPORT_NAME questions
+    VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 target_include_directories(noether_questions PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -34,6 +43,10 @@ noether_check_target(noether_questions)
 foreach(cli IN ITEMS avenquellis-questions noether-questions)
     add_executable(${cli} app/main.cpp)
     target_link_libraries(${cli} PRIVATE AvenquellisQuestions::questions)
+    if(WIN32)
+        # CommandLineToArgvW, which reads the arguments as Unicode.
+        target_link_libraries(${cli} PRIVATE shell32)
+    endif()
     noether_check_target(${cli})
 endforeach()
 if(BUILD_SHARED_LIBS AND UNIX)

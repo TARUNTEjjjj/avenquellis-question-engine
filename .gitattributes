@@ -1,0 +1,4 @@
+# edge/verify.mjs, scripts/build-exact.mjs and the notice checks compare exact bytes with pinned SHA-256
+# hashes, so text keeps LF line endings on every platform, even with Git for Windows' core.autocrlf=true.
+* text=auto eol=lf
+*.wasm binary

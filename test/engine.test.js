@@ -1,8 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {request} from 'node:http';
+import {spawn,spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {existsSync,mkdirSync,mkdtempSync,readFileSync,realpathSync,rmSync,rmdirSync,symlinkSync,unlinkSync,writeFileSync} from 'node:fs';
+import {Agent,request} from 'node:http';
 import {connect} from 'node:net';
-import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose} from '../src/index.js';
+import {devNull,tmpdir} from 'node:os';
+import {delimiter,dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {generateQuestion,generateMock,questionBank,topics,resolveQuestionRef,choose,getQuestion,internals} from '../src/index.js';
 import {createApp} from '../src/server.js';
 
 test('generation is deterministic and mock IDs account for configuration',()=>{
@@ -30,6 +36,17 @@ test('RMO mocks stay within elementary olympiad topics',()=>{
 test('invalid requests fail early',()=>{
  for(const o of [{count:0},{count:31},{count:2.5},{topic:'physics'},{difficulty:'unknown'},{exam:'JEE'}]) assert.throws(()=>generateMock(o),RangeError);
 });
+test('options must be a plain object with supported keys, as in the edge API and CLI',()=>{
+ for(const generate of [generateQuestion,generateMock]) {
+  for(const options of ['week-1',42,true,null,[],['week-1'],new Date(0),new Map(),Object.create({seed:'week-1'})])
+   assert.throws(()=>generate(options),{name:'TypeError',message:'Options must be a plain object.'},String(options));
+  // A misspelled or unsupported key no longer falls back to seed 1 and count 6.
+  for(const key of ['Seed','Count','Topic','questions','level','mode'])
+   assert.throws(()=>generate({seed:'student-17',[key]:'x'}),{name:'TypeError',message:`Unsupported option: ${key}`});
+ }
+ assert.deepEqual(generateQuestion(Object.assign(Object.create(null),{seed:'week-1'})),generateQuestion({seed:'week-1'}));
+ assert.deepEqual(generateMock(),generateMock({}));
+});
 test('only a missing selector or count takes its default, as in the native engine',()=>{
  for(const generate of [generateQuestion,generateMock]) {
   for(const option of ['exam','difficulty','type']) assert.throws(()=>generate({[option]:''}),/^RangeError: Unknown /,option);
@@ -47,6 +64,12 @@ test('only a missing selector or count takes its default, as in the native engin
  assert.deepEqual(generateQuestion({topic:''}),generateQuestion({topic:'all'}));
  assert.deepEqual(generateMock({topic:'',count:3}),generateMock({topic:'all',count:3}));
 });
+test('only the ASCII letters of an exam are uppercased, as natively',()=>{
+ // toUpperCase() also turns ı into I and ſ into S, so 'ıſı' would select ISI, which the native engine rejects.
+ for(const generate of [generateQuestion,generateMock]) assert.throws(()=>generate({exam:'ıſı'}),{name:'RangeError',message:'Unknown exam: ıſı'});
+ // A lowercase ASCII exam is still accepted.
+ assert.deepEqual(generateMock({exam:'isi'}),generateMock({exam:'ISI'}));
+});
 test('all generated seed types can cross the native boundary without coercion or Unicode replacement',()=>{
  for(const seed of [null,true,false,{},[],1.5,NaN,Infinity,-Infinity,9007199254740992,-9007199254740992,'\ud800','\udc00','x\ud800y']) {
   for(const generate of [generateQuestion,generateMock]) assert.throws(()=>generate({seed}),/valid text seed or a safe integer/);
@@ -57,23 +80,78 @@ test('all generated seed types can cross the native boundary without coercion or
  }
  // A matching ID alone cannot authorize a seed that cannot be encoded as UTF-8.
  const seed='\ud800:variant';let hash=2166136261;
- for(const char of seed)hash=Math.imul(hash^char.charCodeAt(0),16777619);
- assert.equal(resolveQuestionRef({id:`number-gcd-${(hash>>>0).toString(36)}`,templateId:'number-gcd',seed,exam:'CMI',difficulty:'advanced'}),null);
+ for(const char of seed)hash=Math.imul(hash^char.codePointAt(0),16777619);
+ assert.equal(resolveQuestionRef({id:`number-gcd-${(hash>>>0).toString(36)}`,templateId:'number-gcd',seed,exam:'CMI',difficulty:'advanced',version:familyVersion('number-gcd')}),null);
+});
+test('seeds differing only in a supplementary character produce different questions',()=>{
+ // Each pair shares a UTF-16 high surrogate, which the seed hash once used in place of the code point.
+ for(const [a,b] of [['team-🐯','team-🐼'],['😀','🚀'],['𠀀','𠏿']]) {
+  const [ma,mb]=[a,b].map(seed=>generateMock({seed,count:12}));
+  assert.notEqual(ma.id,mb.id);
+  assert.notDeepEqual(ma.questions.map(q=>q.statement),mb.questions.map(q=>q.statement));
+  assert.notEqual(generateQuestion({seed:a}).id,generateQuestion({seed:b}).id);
+ }
+ const ids=new Set();
+ for(let cp=0x1f400;cp<=0x1f7ff;cp++) ids.add(generateQuestion({seed:'team-'+String.fromCodePoint(cp)}).id);
+ assert.equal(ids.size,1024);
+ // A reference issued by an earlier release, under the old hash, still resolves to its original question.
+ const legacy={id:'probability-indicators-bo56kn',templateId:'probability-indicators',seed:'😀'.repeat(65)+':variant',exam:'CMI',difficulty:'advanced',version:familyVersion('probability-indicators')};
+ const restored=resolveQuestionRef(legacy);
+ assert.equal(restored.id,legacy.id);assert.equal(restored.generator.seed,legacy.seed);assert.deepEqual(restored.parameters,{n:9});
+ assert.equal(generateQuestion({seed:'😀'.repeat(65)}).id,'advanced-probability-hidden-urn-8cn5f4');
+ // The legacy id is accepted only with a seed that the earlier release hashed to it.
+ for(const seed of ['🎉'.repeat(65)+':variant','a'.repeat(65)+':variant']) assert.equal(resolveQuestionRef({...legacy,seed}),null);
 });
 test('numeric answers satisfy independent computations across 200 seeds',()=>{
- const seen=new Set();
+ // Every numeric family needs an oracle here that computes its answer key another way. Some read the
+ // statement, so that they check the key against the numbers the learner sees.
+ const read=(statement,pattern)=>{const match=pattern.exec(statement);assert.ok(match,statement);return match.slice(1).map(Number);};
+ const gcd=(a,b)=>b?gcd(b,a%b):Math.abs(a),fraction=(n,d)=>{const g=gcd(n,d);return d/g===1?`${n/g}`:`${n/g}/${d/g}`;};
+ const oracles={
+  'algebra-cubes':q=>{
+   // Newton's identities give the power sum p₃ from the elementary symmetric sums in the statement.
+   const [e1,e2,e3]=read(q.statement,/x \+ y \+ z = (\d+), xy \+ yz \+ zx = (\d+), and xyz = (\d+)\./);
+   const p1=e1,p2=e1*p1-2*e2;assert.equal(q.answer,e1*p2-e2*p1+3*e3);
+  },
+  'number-cycle':(q,p)=>{let n=1;for(let i=0;i<p.n;i++) n=(n*2)%7;assert.equal(q.answer,n);},
+  'comb-paths':(q,p)=>{const dp=Array.from({length:p.m+1},()=>Array(p.n+1).fill(1));for(let x=1;x<=p.m;x++)for(let y=1;y<=p.n;y++)dp[x][y]=dp[x-1][y]+dp[x][y-1];assert.equal(q.answer,dp[p.m][p.n]);},
+  'comb-no-adjacent':(q,p)=>{let count=0;for(let mask=0;mask<2**p.n;mask++)if(!(mask&(mask<<1)))count++;assert.equal(q.answer,count);},
+  'geometry-inradius':(q,p)=>{const a=3*p.k,b=4*p.k,c=5*p.k;assert.equal(q.answer,(a+b-c)/2);},
+  'calculus-max':q=>{
+   // A grid of spacing a/N comes within a³/(2N²) of the maximum, because |f″| ≤ 4a on [0,a]. So the key must
+   // bound every grid value and exceed the largest by no more than that.
+   const [a,end]=read(q.statement,/f\(x\)=x\((\d+)−x\)² on the closed interval \[0,(\d+)\]\./),N=3000;
+   assert.equal(end,a);
+   let best=0;for(let i=0;i<=N;i++){const x=a*i/N;best=Math.max(best,x*(a-x)**2);}
+   assert.ok(best<=q.answer+1e-8&&q.answer<=best+a**3/(2*N*N),`${q.answer} for a=${a}`);
+  },
+  'calculus-integral':q=>{
+   // Integrate x^n − x^(n+1) term by term, ∫₀¹ x^k dx = 1/(k+1), in exact fractions.
+   const [n]=read(q.statement,/∫₀¹ x\^(\d+)\(1−x\) dx\./);
+   let numerator=0,denominator=1;
+   for(const [coefficient,k] of [[1,n],[-1,n+1]]) [numerator,denominator]=[numerator*(k+1)+coefficient*denominator,denominator*(k+1)];
+   assert.equal(q.answer,fraction(numerator,denominator));
+  },
+  'probability-urn':q=>{
+   // Count the equally likely ordered pairs of distinct balls.
+   const [red,blue]=read(q.statement,/holds (\d+) red and (\d+) blue balls\. Two balls are drawn uniformly without replacement\./);
+   let good=0,all=0;for(let x=0;x<red+blue;x++)for(let y=0;y<red+blue;y++)if(x!==y){all++;if(x<red&&y<red)good++;}
+   assert.equal(q.answer,fraction(good,all));
+  },
+  'probability-bayes':(q,p)=>{let numerator=0,denominator=0;for(let i=1;i<2**p.n;i++){denominator++;if((i&(i-1))===0)numerator++;}const[a,b='1']=String(q.answer).split('/');assert.equal(Number(a)*denominator,Number(b)*numerator);},
+ };
+ const seen=new Set(),checked=new Set();
  for(let seed=0;seed<200;seed++) for(const q of [...generateMock({count:30,seed}).questions,...questionBank]){
   const p=q.parameters;seen.add(q.templateId);
-  if(q.templateId==='number-cycle') {let n=1;for(let i=0;i<p.n;i++) n=(n*2)%7;assert.equal(q.answer,n);}
-  if(q.templateId==='comb-paths') {const dp=Array.from({length:p.m+1},()=>Array(p.n+1).fill(1));for(let x=1;x<=p.m;x++)for(let y=1;y<=p.n;y++)dp[x][y]=dp[x-1][y]+dp[x][y-1];assert.equal(q.answer,dp[p.m][p.n]);}
-  if(q.templateId==='comb-no-adjacent') {let count=0;for(let mask=0;mask<2**p.n;mask++)if(!(mask&(mask<<1)))count++;assert.equal(q.answer,count);}
-  if(q.templateId==='geometry-inradius') {const a=3*p.k,b=4*p.k,c=5*p.k;assert.equal(q.answer,(a+b-c)/2);}
-  if(q.templateId==='calculus-max') {for(let i=0;i<=300;i++){const x=p.a*i/300;assert.ok(x*(p.a-x)**2<=q.answer+1e-8);}}
+  if(q.type==='numeric') {
+   assert.ok(Object.hasOwn(oracles,q.templateId),`${q.templateId} has no independent answer check`);
+   oracles[q.templateId](q,p);checked.add(q.templateId);
+  }
   if(q.templateId==='algebra-divisors') {for(let x=1;x<100;x++)for(let y=1;y<100;y++)if(x*y===p.k*(x+y)+1) assert.ok(x>p.k && y>p.k && p.n%(x-p.k)===0);}
   if(q.templateId==='number-consecutive')for(let n=-30;n<=30;n++)assert.equal(Math.abs(((n+p.k)*(n+p.k+1)*(n+p.k+2))%6),0);
-  if(q.templateId==='probability-bayes') {let numerator=0,denominator=0;for(let i=1;i<2**p.n;i++){denominator++;if((i&(i-1))===0)numerator++;}const[a,b='1']=String(q.answer).split('/');assert.equal(Number(a)*denominator,Number(b)*numerator);}
  }
  assert.equal(seen.size,48);
+ assert.deepEqual([...checked].sort(),Object.keys(oracles).sort());
 });
 test('choose is exact whenever the binomial coefficient is a safe integer',()=>{
  // Rows of Pascal's triangle in BigInt are the oracle.
@@ -124,6 +202,16 @@ test('HTTP API returns 400 for empty, null and non-string selectors and an inval
   assert.equal((await post(path,body)).status,400,path+' '+body);
  // A single question ignores a valid count.
  assert.equal((await post('/generate','{"count":6}')).status,200);
+});
+test('HTTP API returns 400 for unsupported keys and for an exam that is not ASCII',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const post=(path,body)=>fetch(`http://127.0.0.1:${server.address().port}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+ assert.equal((await post('/generate','{"exam":"ıſı"}')).status,400);
+ for(const path of ['/generate','/mock']) for(const body of ['{"exam":"ISI","Count":12,"Seed":"week-1"}','{"mode":"mock","count":12,"seed":"week-1"}'])
+  assert.equal((await post(path,body)).status,400,path+' '+body);
+ const misspelled=await post('/mock','{"Seed":"student-17","exam":"ISI"}');
+ assert.equal(misspelled.status,400);assert.deepEqual(await misspelled.json(),{error:'Unsupported option: Seed'});
 });
 // Upload on a fresh connection, which Node requests with Connection: close. The first complete
 // response or connection error is the outcome.
@@ -295,6 +383,103 @@ test('HTTP API answers a refused upload that stalls and closes its connection at
   assert.ok(closed>=150,`${status}: closed after ${Math.round(closed)} ms`);
  }));
 });
+test('HTTP API delivers a refusal although the body that follows is malformed',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ // The whole answer to raw request bytes that are sent at once.
+ const answer=bytes=>new Promise(resolve=>{
+  const socket=connect(server.address().port,'127.0.0.1');let text='';
+  socket.on('data',data=>{text+=data;});socket.on('error',()=>{});
+  socket.on('close',()=>resolve(text));
+  socket.write(bytes);
+ });
+ // Node closes the connection for a chunk size that is not hexadecimal. The refusal was sent before that,
+ // also when the bytes arrive together with the head. The 413 of a chunked upload comes only after more
+ // than 16 KB of valid body, so it is not among these.
+ for(const [status,path,type] of [[404,'/nope','application/json'],[415,'/generate','text/plain'],[405,'/api/resources','application/json']]) {
+  const [head,body]=(await answer(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n`)).split('\r\n\r\n');
+  // The client has the whole refusal: its status, the notice that the connection closes, and the JSON error.
+  assert.match(head,new RegExp(`^HTTP/1\\.1 ${status} `),path);
+  assert.match(head,/\r\nConnection: close(\r\n|$)/);
+  assert.equal(typeof JSON.parse(body).error,'string');
+ }
+});
+// The resource catalog's 405 goes out through the same reply as the other refusals. A client that never stops
+// sending still gets each refusal whole, and the service stops reading its upload.
+test('HTTP API delivers the whole refusal, the catalog\'s 405 too, to an upload that never ends',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const frame=Buffer.concat([Buffer.from('10000\r\n'),Buffer.alloc(65536,' '),Buffer.from('\r\n')]),bound=64*1024*1024;
+ for(const [status,path,type] of [[413,'/generate','application/json'],[404,'/nope','application/json'],[415,'/generate','text/plain'],[405,'/api/resources','application/json']]) {
+  const {answer,sent}=await new Promise(resolve=>{
+   const socket=connect(server.address().port,'127.0.0.1');let answer='';
+   socket.on('data',data=>{answer+=data;});socket.on('error',()=>{});
+   socket.on('close',()=>resolve({answer,sent:socket.bytesWritten}));
+   socket.write(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: ${type}\r\nTransfer-Encoding: chunked\r\n\r\n`);
+   const pump=()=>{
+    while(!socket.destroyed) {
+     if(socket.bytesWritten>=bound) return socket.destroy();
+     if(!socket.write(frame)) return socket.once('drain',pump);
+    }
+   };
+   pump();
+  });
+  assert.ok(sent<bound,`${status}: the server read ${sent} bytes and was still reading`);
+  // The client has the whole refusal although it never stopped sending.
+  const [head,body]=answer.split('\r\n\r\n');
+  assert.match(head,new RegExp(`^HTTP/1\\.1 ${status} `),path);
+  assert.match(head,/\r\nConnection: close(\r\n|$)/);
+  assert.equal(typeof JSON.parse(body).error,'string');
+ }
+});
+test('HTTP API keeps a keep-alive client working after an oversized body',async t=>{
+ const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ // One connection at a time, reused as fetch and Python's http.client reuse it.
+ const agent=new Agent({keepAlive:true,maxSockets:1});
+ t.after(()=>{agent.destroy();return new Promise(resolve=>server.close(resolve));});
+ // The outcome, the answer's Connection header, and whether the request went out on the previous
+ // request's connection.
+ const exchange=(method,path,body)=>new Promise(resolve=>{
+  let outcome,connection;
+  const req=request({host:'127.0.0.1',port:server.address().port,path,method,agent,headers:body===undefined?{}:{'Content-Type':'application/json'}},res=>{
+   connection=res.headers.connection;res.on('error',()=>{});res.on('end',()=>{outcome??=res.statusCode;});res.resume();
+  });
+  req.on('error',error=>{outcome??=error.code;});
+  req.on('close',()=>resolve([outcome??'incomplete',connection,req.reusedSocket]));
+  req.end(body);
+ });
+ const post=body=>exchange('POST','/generate',body);
+ assert.deepEqual(await post('{"seed":1}'),[200,'keep-alive',false]);
+ assert.deepEqual(await post('{"seed":1}'),[200,'keep-alive',true]);
+ // A request without a body is complete when it arrives, so its answer, a refusal too, keeps the connection.
+ assert.deepEqual(await exchange('GET','/health'),[200,'keep-alive',true]);
+ assert.deepEqual(await exchange('GET','/nope'),[404,'keep-alive',true]);
+ // The 413 once left its connection open but unread, so the next valid request on it waited six seconds
+ // and was reset. The 413 now says that its connection closes, so the client sends that request on a new one.
+ assert.deepEqual(await post(Buffer.alloc(200_000,' ')),[413,'close',true]);
+ assert.deepEqual(await post('{"seed":1}'),[200,'keep-alive',false]);
+ // The same holds past 8 MiB, where the service stops reading the upload.
+ assert.deepEqual(await post(Buffer.alloc(9*1024*1024,' ')),[413,'close',true]);
+ assert.deepEqual(await post('{"seed":1}'),[200,'keep-alive',false]);
+ assert.deepEqual(await post('{"seed":1}'),[200,'keep-alive',true]);
+});
+test('the HTTP service starts when its path goes through a symlink',async t=>{
+ // As in a deployment where current links to releases/N. The service once compared argv[1] as given with
+ // its own real path, so it exited with status 0 without listening.
+ const directory=mkdtempSync(join(tmpdir(),'avenquellis-')),link=join(directory,'current');
+ symlinkSync(fileURLToPath(new URL('..',import.meta.url)),link,'junction');
+ t.after(()=>{unlinkSync(link);rmdirSync(directory);});
+ // Node also finds the script without its extension.
+ for(const script of [join(link,'src','server.js'),join(link,'src','server')]) {
+  const child=spawn(process.execPath,[script],{env:{...process.env,PORT:'0'},stdio:['ignore','pipe','inherit']});
+  const output=await new Promise(resolve=>{
+   let text='';const timer=setTimeout(()=>child.kill(),10_000);
+   child.stdout.on('data',data=>{text+=data;if(text.includes('\n'))child.kill();});
+   child.on('close',()=>{clearTimeout(timer);resolve(text);});
+  });
+  assert.match(output,/^Avenquellis question engine: http:\/\/127\.0\.0\.1:\d+\n$/,script);
+ }
+});
 
 test('mock assembly excludes duplicate statements and remains deterministic',()=>{
  const options={topic:'number-theory',difficulty:'olympiad',count:12,seed:42};
@@ -307,6 +492,18 @@ test('mock assembly excludes duplicate statements and remains deterministic',()=
   assert.equal(result.questions.length,count);
   assert.equal(new Set(result.questions.map(q=>normalize(q.statement))).size,count);
   assert.match(result.notice,/Difficulty is a preference/);
+ }
+});
+test('impossible mock selections are rejected before generating candidates, as natively',()=>{
+ for(const exam of ['CMI','ISI']) for(const [topic,type,capacity] of [['geometry','numeric',9],['calculus','numeric',11],['calculus','proof',27]]) {
+  assert.equal(new Set(generateMock({exam,topic,type,count:capacity}).questions.map(q=>q.statement)).size,capacity);
+  for(const count of [capacity+1,30]) assert.throws(()=>generateMock({exam,topic,type,count}),{name:'RangeError',message:`At most ${capacity} distinct statements exist in this selection. Reduce count or select mixed topics.`});
+ }
+ // No selection reaches the end of the bounded retry loop: it is either large enough or rejected up front.
+ for(const exam of ['CMI','ISI','RMO']) for(const topic of ['all',...topics]) for(const type of ['all','proof','numeric']) {
+  let mock;
+  try { mock=generateMock({exam,topic,type,count:30}); } catch(error) { assert.match(error.message,/^(At most \d+ distinct statements exist|RMO )/); continue; }
+  assert.equal(mock.questions.length,30);
  }
 });
 test('expanded calculus templates support thirty distinct statements',()=>{
@@ -323,20 +520,35 @@ test('proof-only and numeric-only selection use the requested format',()=>{
  assert.throws(()=>generateMock({exam:'RMO',type:'numeric'}),/proof questions/);
  assert.throws(()=>generateMock({type:'invalid'}),/Unknown question type/);
 });
+test('getQuestion returns a fresh copy that a caller can edit without changing the bank',()=>{
+ const index=questionBank.findIndex(q=>q.type==='numeric'),id=questionBank[index].id,before=structuredClone(questionBank[index]);
+ const view=getQuestion(id);
+ assert.deepEqual(view,before);assert.notEqual(view,questionBank[index]);
+ // A learner-safe view stripped in place, with learner data attached.
+ delete view.answer;delete view.solution;view.rubric.length=0;view.learnerResponse='private draft';
+ assert.deepEqual(questionBank[index],before);
+ assert.deepEqual(getQuestion(id),before);
+ for(const missing of ['missing',questionBank[index].templateId,undefined]) assert.equal(getQuestion(missing),null);
+});
 test('gcd rubric rewards both common-divisor implications more than the conclusion',()=>{
  const q=questionBank.find(q=>q.templateId==='number-gcd');
  assert.deepEqual(q.rubric.map(c=>c.points),[4,4,2]);
  assert.match(q.rubric[0].description,/divisor/);assert.match(q.rubric[1].description,/converse/);
 });
 
+// The reference that README.md tells an integration to save, version included.
 function referenceFor(question) {
   return {id: question.id, templateId: question.templateId, seed: question.generator.seed,
-    exam: question.exam, difficulty: question.requestedDifficulty};
+    exam: question.exam, difficulty: question.requestedDifficulty, version: question.generator.version};
+}
+// The content version that a family has now, for references that the tests write by hand.
+function familyVersion(templateId) {
+  return questionBank.find(question => question.templateId === templateId).generator.version;
 }
 
 test('server resolves fresh authoritative questions from bank, generated, and mock references', () => {
   for (const question of questionBank) {
-    assert.deepEqual(resolveQuestionRef({id: question.id}), question);
+    assert.deepEqual(resolveQuestionRef({id: question.id, version: question.generator.version}), question);
     assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
   }
   const generated = generateQuestion({topic: 'combinatorics', difficulty: 'olympiad', seed: 'α:custom', exam: 'RMO'});
@@ -344,9 +556,10 @@ test('server resolves fresh authoritative questions from bank, generated, and mo
   for (const question of generateMock({exam: 'ISI', difficulty: 'advanced', count: 18, seed: 71}).questions) {
     assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
   }
-  const isolated = resolveQuestionRef({id: questionBank[0].id});
+  const first = {id: questionBank[0].id, version: questionBank[0].generator.version};
+  const isolated = resolveQuestionRef(first);
   isolated.rubric[0].points = 999;
-  assert.deepEqual(resolveQuestionRef({id: questionBank[0].id}), questionBank[0]);
+  assert.deepEqual(resolveQuestionRef(first), questionBank[0]);
 });
 
 test('server rejects tampered and oversized question references before reconstructing content', () => {
@@ -364,6 +577,116 @@ test('server rejects tampered and oversized question references before reconstru
   const bank = referenceFor(questionBank[0]);
   assert.equal(resolveQuestionRef({...bank, seed: 'wrong'}), null);
   assert.equal(resolveQuestionRef({...bank, templateId: 'wrong'}), null);
+  for (const change of [{seed: 'bank:2'}, {exam: 'ISI'}, {difficulty: 'olympiad'}, {seed: 'wrong:variant', exam: 'ISI'}]) {
+    assert.equal(resolveQuestionRef({...bank, ...change}), null, JSON.stringify(change));
+  }
+});
+
+test('a generated question whose id equals its family bank id resolves from its full reference', () => {
+  // Each seed hashes like the family's bank seed, so the generated id is the bank id.
+  const bankIds = new Set(questionBank.map(q => q.id));
+  for (const [options, seed] of [[{difficulty: 'foundation', type: 'proof', exam: 'CMI'}, 'u0䁯퇦'],
+    [{topic: 'combinatorics', difficulty: 'foundation', type: 'numeric', exam: 'ISI'}, 'g0男쵀'],
+    [{topic: 'number-theory', difficulty: 'advanced', exam: 'RMO'}, 'g0㎦힘']]) {
+    const question = generateQuestion({...options, seed});
+    assert.ok(bankIds.has(question.id), seed);
+    assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+    // The id and version alone still name the bank edition.
+    assert.deepEqual(resolveQuestionRef({id: question.id, version: question.generator.version}), questionBank.find(q => q.id === question.id));
+  }
+  const mock = generateMock({exam: 'CMI', difficulty: 'advanced', count: 6, seed: 'g0⺖긪'});
+  assert.equal(mock.questions.filter(q => bankIds.has(q.id)).length, 1);
+  for (const question of mock.questions) assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+});
+
+test('a saved reference carries its content version and resolves only to that content', () => {
+  // As saved before references carried a version.
+  const unversioned = question => {
+    const {version, ...reference} = referenceFor(question);
+    return reference;
+  };
+  for (const question of [...questionBank, generateQuestion({seed: 'week-1'}),
+    ...generateMock({exam: 'ISI', count: 18, seed: 'week-1'}).questions]) {
+    const {version} = question.generator;
+    assert.deepEqual(resolveQuestionRef(referenceFor(question)), question);
+    // A release that changes a family's draws, text, answer or rubric gives the family a new version. A
+    // reference to the earlier content then resolves to null rather than to the changed question.
+    for (const other of ['0.0.0', '0.1', '', `${version} `, `${version}.1`, 1, null, [version]])
+      assert.equal(resolveQuestionRef({...referenceFor(question), version: other}), null, JSON.stringify(other));
+    // A reference saved before references carried a version names 0.1.0.
+    assert.deepEqual(resolveQuestionRef(unversioned(question)), version === '0.1.0' ? question : null);
+  }
+  for (const question of questionBank) {
+    const {version} = question.generator;
+    assert.deepEqual(resolveQuestionRef({id: question.id, version}), question);
+    assert.equal(resolveQuestionRef({id: question.id, version: '0.0.0'}), null);
+    assert.deepEqual(resolveQuestionRef({id: question.id}), version === '0.1.0' ? question : null);
+  }
+});
+
+// Each family's variants through the public resolver: those of the first 1000 variant seeds, then further seeds
+// until the sample holds every distinct statement that the family can produce, which maxVariants (max_variants
+// natively) counts. Shared by the three tests below, which need the whole of each family.
+let samples;
+function familySamples() {
+  samples ??= sampleFamilies();
+  return samples;
+}
+function sampleFamilies() {
+  const found = new Map(), limits = new Map(internals.families.map(family => [family.key, family.maxVariants]));
+  for (const {templateId, generator: {version}} of questionBank) {
+    const digest = createHash('sha256'), statements = new Set(), later = [], limit = limits.get(templateId);
+    let i = 0;
+    for (; i < 1000 || (statements.size < limit && i < 100000); i++) {
+      const seed = `${i}:variant`;
+      let h = 2166136261;
+      for (const char of seed) h = Math.imul(h ^ char.codePointAt(0), 16777619);
+      const q = resolveQuestionRef({id: `${templateId}-${(h >>> 0).toString(36)}`, templateId, seed, exam: 'ISI', difficulty: 'advanced', version});
+      const content = JSON.stringify([q.title, q.statement, q.topic, q.difficulty, q.type, q.maxMarks, q.solution,
+        q.rubric.map(c => [c.id, c.description, c.points]), q.answer ?? null, Object.entries(q.parameters).sort()]);
+      // The fingerprint covers the first 1000 seeds in order, then each statement that only later seeds reach,
+      // so a larger family adds seeds without changing the fingerprints already recorded.
+      if (i < 1000) digest.update(content);
+      else if (!statements.has(q.statement)) later.push(content);
+      statements.add(q.statement);
+    }
+    for (const content of later.sort()) digest.update(content);
+    assert.equal(statements.size, limit, `${templateId}: ${i} seeds reach ${statements.size} of its ${limit} distinct statements`);
+    found.set(templateId, {version, fingerprint: digest.digest('hex').slice(0, 16), statements});
+  }
+  return found;
+}
+
+test('the sampled seeds reach every distinct statement of every family', () => {
+  assert.deepEqual([...familySamples().keys()], internals.families.map(family => family.key));
+});
+
+// Every family@version that a release has carried, with the fingerprint of its content over all of its statements.
+// Saved references resolve only to the content of their version, so an entry never changes and is never removed.
+// After changing a family's draws, text, answer or rubric, give it a new version in both catalogs
+// (src/index.js or src/advanced-templates.js, and src/native/catalog.cpp) and add an entry for that version,
+// keeping the old one. check.yml runs scripts/check-content-versions.mjs, which fails when an entry changes.
+const contentFingerprints = JSON.parse(readFileSync(new URL('content-fingerprints.json', import.meta.url), 'utf8'));
+test('each family\'s content is pinned to its version', () => {
+  for (const [templateId, {version, fingerprint}] of familySamples()) {
+    const key = `${templateId}@${version}`;
+    assert.ok(Object.hasOwn(contentFingerprints, key), `test/content-fingerprints.json has no entry for ${key}: add "${key}": "${fingerprint}".`);
+    assert.equal(fingerprint, contentFingerprints[key], `${key} changed under its version: give the family a new version in both catalogs and add an entry for it.`);
+  }
+});
+
+test('no two distinct statements share the key that mock assembly deduplicates on', () => {
+  // generateMock skips a statement whose key it has already used, and the native generate_mock one it has
+  // already used verbatim. The two engines assemble the same mock only while distinct statements have
+  // distinct keys. A family printing both 5⁸⁸ and 58⁸, which normalize to 588, would make their mocks differ.
+  const owners = new Map();
+  for (const [templateId, {statements}] of familySamples()) {
+    for (const statement of statements) {
+      const key = internals.statementKey(statement), other = owners.get(key);
+      assert.ok(!other || other.statement === statement, `${other?.templateId}: "${other?.statement}" and ${templateId}: "${statement}"`);
+      owners.set(key, {templateId, statement});
+    }
+  }
 });
 
 test('seeds stay within the native 256-unit reference limit instead of producing unresolvable questions', () => {
@@ -391,4 +714,113 @@ test('binomial helper handles empty selections, impossible selections and exact 
  assert.equal(choose(60,5),choose(60,55));
  for(const [n,k] of [[-1,0],[3,-1],[3.5,1],[3,1.5],[Infinity,0],[3,NaN],['3',1]])assert.throws(()=>choose(n,k),RangeError);
  assert.throws(()=>choose(60,30),RangeError);
+});
+
+test('a checkout with Windows line endings keeps the bytes that the release and vendored sources pin',t=>{
+ // Git for Windows checks text out with CRLF by default (core.autocrlf=true). edge/verify.mjs, the exact-math
+ // build and the notice checks compare exact bytes, so .gitattributes keeps LF on every platform.
+ const root=fileURLToPath(new URL('..',import.meta.url));
+ if(!existsSync(join(root,'.git'))) return t.skip('not a Git checkout');
+ const directory=mkdtempSync(join(tmpdir(),'avenquellis-'));
+ t.after(()=>rmSync(directory,{recursive:true,force:true}));
+ const checkout=spawnSync('git',['-c','core.autocrlf=true','checkout-index','--all',`--prefix=${directory}/`],{cwd:root,encoding:'utf8'});
+ assert.equal(checkout.status,0,checkout.stderr||String(checkout.error));
+ const read=file=>readFileSync(join(directory,file)),sha=file=>createHash('sha256').update(read(file)).digest('hex');
+ const provenance=JSON.parse(read('vendor/axiom-math/PROVENANCE.json')),manifest=JSON.parse(read('release/edge/manifest.json'));
+ for(const [file,hash] of Object.entries(provenance.files)) assert.equal(sha(`vendor/axiom-math/${file}`),hash,file);
+ assert.equal(sha('release/edge/adapter.mjs'),manifest.adapterSha256);
+ assert.equal(sha(`release/edge/${manifest.wasm}`),manifest.sha256);
+ for(const file of ['edge','release/edge','browser'].map(folder=>`${folder}/THIRD-PARTY-NOTICES.txt`))
+  assert.ok(read(file).toString().includes(`\n${manifest.toolchain}\n`),file);
+});
+
+// A scratch Git repository holding the given files in one commit, isolated from the user's Git configuration and
+// from any repository around it. run starts a command there with the running Node first on PATH.
+function scratchRepository(t,files,environment={}) {
+ const directory=realpathSync(mkdtempSync(join(tmpdir(),'avenquellis-')));
+ t.after(()=>rmSync(directory,{recursive:true,force:true}));
+ const env={...process.env,...environment,GIT_CONFIG_GLOBAL:devNull,GIT_CONFIG_NOSYSTEM:'1',GIT_CEILING_DIRECTORIES:dirname(directory),
+  GIT_AUTHOR_NAME:'test',GIT_AUTHOR_EMAIL:'test@example.com',GIT_COMMITTER_NAME:'test',GIT_COMMITTER_EMAIL:'test@example.com',
+  PATH:dirname(process.execPath)+delimiter+process.env.PATH};
+ const write=(file,text)=>{mkdirSync(dirname(join(directory,file)),{recursive:true});writeFileSync(join(directory,file),text);};
+ const run=(command,...args)=>spawnSync(command,args,{cwd:directory,env,encoding:'utf8'});
+ const git=(...args)=>{const result=run('git',...args);assert.equal(result.status,0,result.stderr);return result.stdout.trim();};
+ for(const [file,text] of Object.entries(files)) write(file,text);
+ git('init','-q');git('add','-A');git('commit','-qm','scratch');
+ return {directory,write,run,git};
+}
+const missing=(...commands)=>commands.some(command=>spawnSync(command,['--version']).error);
+
+test('the edge build records its commit only from a Git checkout whose build inputs match it',t=>{
+ // manifest.json names HEAD as the module's exact source, so a modified, untracked or staged input would make it wrong.
+ if(missing('git','bash')) return t.skip('needs git and bash');
+ const root=fileURLToPath(new URL('..',import.meta.url));
+ const tools=mkdtempSync(join(tmpdir(),'avenquellis-'));
+ t.after(()=>rmSync(tools,{recursive:true,force:true}));
+ // A stand-in compiler that reports the pinned release and writes an empty WebAssembly module.
+ writeFileSync(join(tools,'em++'),`#!/bin/sh
+if [ "$1" = --version ]; then echo 'emcc (stand-in) 6.0.13'; exit 0; fi
+while [ "$#" -gt 1 ]; do if [ "$1" = -o ]; then printf '\\000asm\\001\\000\\000\\000' > "$2"; exit 0; fi; shift; done
+exit 1
+`,{mode:0o755});
+ const inputs=['include/noether/questions.hpp','src/native/engine.cpp','edge/bridge.cpp','edge/adapter.mjs','edge/THIRD-PARTY-NOTICES.txt'];
+ const {directory,write,run,git}=scratchRepository(t,{'scripts/build-edge.sh':readFileSync(join(root,'scripts/build-edge.sh'),'utf8'),
+  'README.md':'notes\n',...Object.fromEntries(inputs.map(file=>[file,file+'\n']))},{EMXX:join(tools,'em++')});
+ const build=()=>run('bash','scripts/build-edge.sh','out');
+ const refused=change=>{const result=build();assert.equal(result.status,1,change);assert.match(result.stderr,/Commit the build inputs first/,change);};
+ let result=build();
+ assert.equal(result.status,0,result.stderr);
+ assert.equal(JSON.parse(readFileSync(join(directory,'out/manifest.json'),'utf8')).sourceCommit,git('rev-parse','HEAD'));
+ write('src/native/engine.cpp','changed\n');
+ refused('modified input');
+ git('checkout','HEAD','--','src/native/engine.cpp');
+ write('include/noether/extra.hpp','new\n');
+ refused('untracked input');
+ rmSync(join(directory,'include/noether/extra.hpp'));
+ write('edge/bridge.cpp','staged\n');
+ git('add','edge/bridge.cpp');
+ refused('staged input');
+ git('checkout','HEAD','--','edge/bridge.cpp');
+ // Files that do not reach the module may differ.
+ write('README.md','edited\n');
+ result=build();
+ assert.equal(result.status,0,result.stderr);
+ // Without a checkout there is no commit to record.
+ rmSync(join(directory,'.git'),{recursive:true,force:true});
+ result=build();
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/Run the build in a Git checkout/);
+});
+
+test('a family@version keeps the fingerprint that an earlier commit recorded',t=>{
+ if(missing('git')) return t.skip('needs git');
+ const root=fileURLToPath(new URL('..',import.meta.url));
+ const {write,run,git}=scratchRepository(t,{'scripts/check-content-versions.mjs':readFileSync(join(root,'scripts/check-content-versions.mjs'),'utf8')});
+ const check=(...base)=>run(process.execPath,'scripts/check-content-versions.mjs',...base);
+ const save=entries=>write('test/content-fingerprints.json',JSON.stringify(entries,null,2)+'\n');
+ const recorded={'number-gcd@0.1.0':'4f5f2c68f73e1147','calculus-max@0.1.0':'f752cb9d4608be1e'};
+ save(recorded);
+ git('add','-A');
+ git('commit','-qm','record');
+ // A commit without the record has nothing to compare, and neither has a push that creates a branch.
+ assert.equal(check('HEAD~1').status,0);
+ assert.equal(check('0'.repeat(40)).status,0);
+ assert.equal(check('f'.repeat(40)).status,1);
+ assert.equal(check().status,0);
+ // A changed family gets a new version and its own entry.
+ save({...recorded,'calculus-max@0.2.0':'0123456789abcdef'});
+ assert.equal(check().status,0);
+ // Re-pinning the released version, or dropping it, would let old references resolve to the new content.
+ save({...recorded,'calculus-max@0.1.0':'0123456789abcdef'});
+ let result=check();
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/calculus-max@0\.1\.0: f752cb9d4608be1e at HEAD, 0123456789abcdef now\./);
+ save({'number-gcd@0.1.0':recorded['number-gcd@0.1.0']});
+ result=check();
+ assert.equal(result.status,1);
+ assert.match(result.stderr,/calculus-max@0\.1\.0: f752cb9d4608be1e at HEAD, removed now\./);
+ // Once committed, the re-pin still differs from the commit before it, which CI compares with.
+ save({...recorded,'calculus-max@0.1.0':'0123456789abcdef'});
+ git('commit','-qam','re-pin');
+ assert.equal(check('HEAD~1').status,1);
 });

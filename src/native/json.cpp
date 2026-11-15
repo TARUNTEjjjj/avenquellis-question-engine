@@ -93,7 +93,7 @@ std::string to_json(const Question& q) {
     result.add("parameters", parameters.finish());
     Object generator;
     generator.add("kind", "\"deterministic-template\"");
-    generator.add("version", "\"0.1.0\"");
+    generator.add("version", json_string(q.version));
     generator.add("seed", json_string(q.seed));
     result.add("generator", generator.finish());
     return result.finish();

@@ -5,6 +5,21 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <shellapi.h>
+// Older MinGW-w64 headers declare this Windows Vista flag only when _WIN32_WINNT is at least 0x0600.
+#ifndef WC_ERR_INVALID_CHARS
+#define WC_ERR_INVALID_CHARS 0x00000080
+#endif
+#endif
 
 namespace {
 using namespace noether::questions;
@@ -64,10 +79,43 @@ std::string run(int argc, char** argv) {
     return to_json(command == "chapter" ? generate_chapter(options, count) : generate_mock(options, count));
 }
 
+#ifdef _WIN32
+// Windows passes argv in the ANSI code page, which replaces or re-encodes a seed's Greek letters, emoji
+// or accented letters, so the seed would hash differently than in JavaScript or be rejected. Convert the
+// UTF-16 command line to UTF-8 instead, as other platforms pass it.
+std::vector<std::string> utf8_arguments() {
+    int count = 0;
+    wchar_t** wide = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (!wide) throw std::runtime_error("Could not read the command line.");
+    std::vector<std::string> result;
+    for (int i = 0; i < count; ++i) {
+        // With a length of -1 the conversion includes the terminating NUL.
+        const int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string text(size > 0 ? static_cast<std::size_t>(size) : 0, '\0');
+        if (size <= 0 || WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide[i], -1, text.data(), size, nullptr, nullptr) != size) {
+            LocalFree(wide);
+            throw std::invalid_argument("Arguments must be valid Unicode.");
+        }
+        text.pop_back();
+        result.push_back(std::move(text));
+    }
+    LocalFree(wide);
+    return result;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
+#ifdef _WIN32
+        auto arguments = utf8_arguments();
+        std::vector<char*> pointers;
+        for (auto& argument : arguments) pointers.push_back(argument.data());
+        pointers.push_back(nullptr);
+        argc = static_cast<int>(arguments.size());
+        argv = pointers.data();
+#endif
         std::cout << run(argc, argv) << '\n' << std::flush;
         if (!std::cout) throw std::runtime_error("Could not write output.");
         return 0;

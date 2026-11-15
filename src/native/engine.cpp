@@ -44,18 +44,20 @@ bool seed_fits(std::string_view text, std::size_t limit) {
     return true;
 }
 
-std::uint32_t hash(std::string_view s) {
-    // JavaScript iterates Unicode code points, then hashes charCodeAt(0).
+std::uint32_t hash(std::string_view s, bool legacy) {
+    // JavaScript iterates Unicode code points, then hashes codePointAt(0). Earlier releases hashed
+    // charCodeAt(0), only the high surrogate of a supplementary character, so seeds differing in one
+    // such character from the same 1024-code-point block collided. legacy reproduces that hash.
     std::uint32_t h = 2166136261u;
     for (std::size_t pos = 0; pos < s.size();) {
         const auto cp = next_scalar(s, pos);
-        const auto unit = cp > 0xffff ? 0xd800u + ((cp - 0x10000u) >> 10u) : cp;
+        const auto unit = legacy && cp > 0xffff ? 0xd800u + ((cp - 0x10000u) >> 10u) : cp;
         h = (h ^ unit) * 16777619u;
     }
     return h;
 }
 
-Random::Random(std::string_view seed) : state_(hash(seed)) {}
+Random::Random(std::string_view seed, bool legacy) : state_(hash(seed, legacy)) {}
 
 std::uint32_t Random::next() {
     state_ += 0x6d2b79f5u;
@@ -132,14 +134,15 @@ std::string base36(std::uint32_t n) {
     return result;
 }
 
-Question make(const Family& family, const std::string& seed, const Options& options) {
+Question make(const Family& family, const std::string& seed, const Options& options, bool legacy = false) {
     if (!detail::seed_fits(seed, 256)) throw std::invalid_argument("A complete variant seed may use at most 256 UTF-16 code units.");
-    Random random(seed);
+    Random random(seed, legacy);
     auto content = family.make(random);
     Question q;
     q.template_id = family.id;
     q.seed = seed;
-    q.id = q.template_id + "-" + base36(detail::hash(seed));
+    q.version = family.version;
+    q.id = q.template_id + "-" + base36(detail::hash(seed, legacy));
     q.title = family.title;
     q.topic = family.topic;
     q.difficulty = family.difficulty;
@@ -152,6 +155,19 @@ Question make(const Family& family, const std::string& seed, const Options& opti
     q.parameters = std::move(content.parameters);
     q.answer = std::move(content.answer);
     return q;
+}
+
+Question replay_family(const std::string& template_id, const std::string& variant_seed,
+                       const std::string& exam, const std::string& requested_difficulty, bool legacy) {
+    if (variant_seed.empty() || variant_seed.size() > 3 * 256) throw std::invalid_argument("Invalid variant seed length.");
+    Options options;
+    options.exam = exam;
+    options.difficulty = requested_difficulty;
+    const auto o = normalized(options);
+    for (const auto* family : matching(o)) {
+        if (family->id == template_id) return make(*family, variant_seed, o, legacy);
+    }
+    throw std::invalid_argument("Unknown or ineligible family: " + template_id);
 }
 
 std::string mock_id(const Options& o, int count) {
@@ -193,10 +209,15 @@ std::optional<Question> resolve_reference(const Reference& ref) {
         ref.id.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789-") != std::string::npos ||
         (ref.template_id && ref.template_id->size() > 100) ||
         (ref.seed && (ref.seed->empty() || ref.seed->size() > 3 * 256))) return std::nullopt;
+    // A family's content can change in a later release, under a new version. The reference resolves only
+    // while its family still has the version it was issued with, rather than to content it never had.
+    const std::string_view version = ref.version ? std::string_view(*ref.version) : "0.1.0";
+    // A bank id with no other or matching metadata names the bank edition. A generated question whose seed
+    // hashes like its family's bank seed shares that id, and its full reference is verified as generated below.
     if (auto q = find_bank_question(ref.id)) {
-        if ((ref.template_id && *ref.template_id != q->template_id) || (ref.seed && *ref.seed != q->seed) ||
-            (ref.exam && *ref.exam != q->exam) || (ref.difficulty && *ref.difficulty != q->difficulty)) return std::nullopt;
-        return q;
+        if ((!ref.template_id || *ref.template_id == q->template_id) && (!ref.seed || *ref.seed == q->seed) &&
+            (!ref.exam || *ref.exam == q->exam) && (!ref.difficulty || *ref.difficulty == q->difficulty) &&
+            q->version == version) return q;
     }
     if (!ref.template_id || !ref.seed || !ref.exam || !ref.difficulty) return std::nullopt;
     if (*ref.exam != "CMI" && *ref.exam != "ISI" && *ref.exam != "RMO") return std::nullopt;
@@ -211,8 +232,11 @@ std::optional<Question> resolve_reference(const Reference& ref) {
             error != std::errc{} || end != suffix.data() + suffix.size() || attempt >= 4096) return std::nullopt;
     }
     try {
-        auto q = replay(*ref.template_id, *ref.seed, *ref.exam, *ref.difficulty);
-        if (q.id == ref.id) return q;
+        // A reference saved by an earlier release carries the id of the legacy seed hash. Only a seed
+        // with a supplementary character hashes differently, and it keeps resolving to its original content.
+        const bool legacy = ref.id != *ref.template_id + "-" + base36(detail::hash(*ref.seed));
+        auto q = replay_family(*ref.template_id, *ref.seed, *ref.exam, *ref.difficulty, legacy);
+        if (q.id == ref.id && q.version == version) return q;
     } catch (const std::invalid_argument&) {
         // Unknown family, invalid seed, or an ineligible RMO selection.
     }
@@ -254,8 +278,10 @@ Mock generate_mock(const Options& options, int count) {
     for (const auto& [topic, label] : topics) if (topic == o.topic) chapter = label;
     Mock mock{mock_id(o, count), o.exam + " " + chapter + " Practice", o.exam, o.difficulty, o.type, 15 * count, 10 * count, {}};
     std::unordered_set<std::string> seen;
-    // All current template variants change statement text only through numeric parameters.
-    // Within this catalog, exact equality therefore identifies the same duplicates as web normalization.
+    // The JavaScript mock skips a statement whose NFKC, whitespace and case-normalized key it has already used.
+    // Exact equality skips the same statements only while no two distinct statements of the catalog share a
+    // normalized key, as 5^88 and 58^8 printed with superscript exponents would (both become 588).
+    // test/engine.test.js checks this for every family.
     for (std::size_t attempt = 0; attempt < 4096 && mock.questions.size() < static_cast<std::size_t>(count); ++attempt) {
         auto q = make(*pool[attempt % pool.size()], seed + ":mock:" + std::to_string(attempt), o);
         if (seen.insert(q.statement).second) mock.questions.push_back(std::move(q));
@@ -272,15 +298,7 @@ Mock generate_chapter(const Options& options, int count) {
 
 Question replay(const std::string& template_id, const std::string& variant_seed,
                 const std::string& exam, const std::string& requested_difficulty) {
-    if (variant_seed.empty() || variant_seed.size() > 3 * 256) throw std::invalid_argument("Invalid variant seed length.");
-    Options options;
-    options.exam = exam;
-    options.difficulty = requested_difficulty;
-    const auto o = normalized(options);
-    for (const auto* family : matching(o)) {
-        if (family->id == template_id) return make(*family, variant_seed, o);
-    }
-    throw std::invalid_argument("Unknown or ineligible family: " + template_id);
+    return replay_family(template_id, variant_seed, exam, requested_difficulty, false);
 }
 
 } // namespace noether::questions

@@ -19,6 +19,12 @@ void rejects(Fn attempt) {
 
 int param(const Question& q, const char* key) { return std::get<int>(q.parameters.at(key)); }
 
+// The content version that a family has now, for references that the tests write by hand.
+std::string version_of(const std::string& family) {
+    for (const auto& q : bank()) if (q.template_id == family) return q.version;
+    throw std::runtime_error("unknown family");
+}
+
 void test_bank() {
     const auto items = bank();
     check(items.size() == 48, "catalog size");
@@ -69,19 +75,19 @@ void test_mocks() {
     for (const auto& q : m.questions) check(q.topic == o.topic && q.type == "proof" && seen.insert(q.statement).second, "chapter selection");
     check(to_json(m) == to_json(generate_mock(o, 18)), "determinism");
     for (const auto& q : m.questions) {
-        Reference ref{q.id, q.template_id, q.seed, q.exam, q.requested_difficulty};
+        Reference ref{q.id, q.template_id, q.seed, q.exam, q.requested_difficulty, q.version};
         const auto restored = resolve_reference(ref);
         check(restored && to_json(*restored) == to_json(q), "mock reference replay");
         ref.id += "0";
         check(!resolve_reference(ref), "tampered id");
     }
-    Reference canonical{"number-gcd-17s23lf", {}, {}, {}, {}};
+    Reference canonical{"number-gcd-17s23lf", {}, {}, {}, {}, version_of("number-gcd")};
     check(resolve_reference(canonical).has_value(), "bank reference");
     canonical.exam = "RMO";
     check(!resolve_reference(canonical), "forged bank metadata");
     auto generated = generate_question(o);
     auto malformed = replay(generated.template_id, "42:mock:4096", "RMO", "olympiad");
-    check(!resolve_reference({malformed.id, malformed.template_id, malformed.seed, "RMO", "olympiad"}), "invalid attempt");
+    check(!resolve_reference({malformed.id, malformed.template_id, malformed.seed, "RMO", "olympiad", malformed.version}), "invalid attempt");
     rejects([&] { generate_mock(o, 0); });
     o.topic = "calculus"; rejects([&] { generate_mock(o); });
     o.topic = "all"; rejects([&] { generate_chapter(o); });
@@ -97,31 +103,88 @@ void test_unicode_refs() {
     for (int i = 0; i < 65; ++i) emoji += "😀";
     o.seed = emoji;
     const auto q = generate_question(o);
-    check(q.id == "probability-indicators-bo56kn", "JavaScript supplementary-character seed hash");
-    auto restored = resolve_reference({q.id, q.template_id, q.seed, q.exam, q.requested_difficulty});
+    check(q.id == "advanced-probability-hidden-urn-8cn5f4", "JavaScript supplementary-character seed hash");
+    auto restored = resolve_reference({q.id, q.template_id, q.seed, q.exam, q.requested_difficulty, q.version});
     check(restored && to_json(*restored) == to_json(q), "valid long Unicode reference");
+    // Earlier releases hashed a supplementary character as its UTF-16 high surrogate and issued this id.
+    const auto legacy = resolve_reference({"probability-indicators-bo56kn", "probability-indicators", emoji + ":variant", "CMI", "advanced",
+                                           version_of("probability-indicators")});
+    check(legacy && legacy->id == "probability-indicators-bo56kn" && param(*legacy, "n") == 9, "legacy supplementary-character reference");
+    Options tiger, panda; // U+1F42F and U+1F43C share the high surrogate U+D83D.
+    tiger.seed = std::string("team-🐯");
+    panda.seed = std::string("team-🐼");
+    check(generate_mock(tiger).id != generate_mock(panda).id &&
+          generate_question(tiger).statement != generate_question(panda).statement, "distinct supplementary characters");
 
     std::string raw;
     for (int i = 0; i < 124; ++i) raw += "😀"; // 248 units, leaving eight for ":variant".
     o.seed = raw;
     const auto longest = generate_question(o);
     check(resolve_reference({longest.id, longest.template_id, longest.seed, longest.exam,
-                             longest.requested_difficulty}).has_value(), "exact 256-unit reference");
+                             longest.requested_difficulty, longest.version}).has_value(), "exact 256-unit reference");
     o.seed = raw + "a";
     rejects([&] { generate_question(o); });
     const auto mock = generate_mock(o, 1); // A shorter ":mock:0" suffix still fits.
     const auto& m = mock.questions.front();
-    check(resolve_reference({m.id, m.template_id, m.seed, m.exam, m.requested_difficulty}).has_value(), "exact 256-unit mock seed");
+    check(resolve_reference({m.id, m.template_id, m.seed, m.exam, m.requested_difficulty, m.version}).has_value(), "exact 256-unit mock seed");
     const auto invalid = raw + "x:variant";
     rejects([&] { replay("number-gcd", invalid, "CMI", "advanced"); });
-    check(!resolve_reference({longest.id, longest.template_id, invalid, "CMI", "advanced"}), "oversize reference");
+    check(!resolve_reference({longest.id, longest.template_id, invalid, "CMI", "advanced", longest.version}), "oversize reference");
     const std::string bad("\xed\xa0\x80", 3); // A UTF-8 encoding of a surrogate.
-    check(!resolve_reference({longest.id, longest.template_id, bad + ":variant", "CMI", "advanced"}), "malformed seed");
+    check(!resolve_reference({longest.id, longest.template_id, bad + ":variant", "CMI", "advanced", longest.version}), "malformed seed");
+}
+
+void test_bank_id_collision() {
+    // This seed hashes like the bank seed of the chosen family, so the generated id is the bank id.
+    Options o;
+    o.difficulty = "foundation"; o.type = "proof"; o.seed = std::string("u0䁯퇦");
+    const auto q = generate_question(o);
+    const auto edition = find_bank_question(q.id);
+    check(edition && edition->seed != q.seed, "generated id equals a bank id");
+    const auto restored = resolve_reference({q.id, q.template_id, q.seed, q.exam, q.requested_difficulty, q.version});
+    check(restored && to_json(*restored) == to_json(q), "generated reference sharing a bank id");
+    const auto by_id = resolve_reference({q.id, {}, {}, {}, {}, edition->version});
+    check(by_id && to_json(*by_id) == to_json(*edition), "bank id and version alone");
+    Options m;
+    m.seed = std::string("g0⺖긪");
+    int shared = 0;
+    for (const auto& question : generate_mock(m).questions) {
+        shared += find_bank_question(question.id).has_value() ? 1 : 0;
+        const auto r = resolve_reference({question.id, question.template_id, question.seed, question.exam, question.requested_difficulty,
+                                          question.version});
+        check(r && to_json(*r) == to_json(question), "mock reference sharing a bank id");
+    }
+    check(shared == 1, "mock question with a bank id");
+}
+
+void test_content_versions() {
+    // A saved reference carries generator.version and resolves only to content of that version, so a
+    // family whose content a later release changes gives no question rather than a different one.
+    Options o;
+    o.seed = std::string("week-1");
+    for (const auto& q : generate_mock(o, 12).questions) {
+        check(!q.version.empty() && to_json(q).find(",\"version\":\"" + q.version + "\",") != std::string::npos, "content version");
+        Reference ref{q.id, q.template_id, q.seed, q.exam, q.requested_difficulty, q.version};
+        const auto restored = resolve_reference(ref);
+        check(restored && to_json(*restored) == to_json(q), "versioned reference");
+        for (const auto& other : {std::string("0.0.0"), std::string("0.1"), std::string(), q.version + " ", q.version + ".1"}) {
+            ref.version = other;
+            check(!resolve_reference(ref), "reference to other content");
+        }
+        ref.version.reset(); // Saved before references carried a version, so it names 0.1.0.
+        check(resolve_reference(ref).has_value() == (q.version == "0.1.0"), "unversioned reference");
+    }
+    for (const auto& edition : bank()) {
+        check(resolve_reference({edition.id, {}, {}, {}, {}, edition.version}).has_value() &&
+              !resolve_reference({edition.id, {}, {}, {}, {}, std::string("0.0.0")}), "versioned bank reference");
+        // A five-value reference, as written before references carried a version, names 0.1.0.
+        check(resolve_reference({edition.id, {}, {}, {}, {}}).has_value() == (edition.version == "0.1.0"), "unversioned bank reference");
+    }
 }
 
 } // namespace
 
 int main() {
-    try { test_bank(); test_numeric(); test_mocks(); test_unicode_refs(); }
+    try { test_bank(); test_numeric(); test_mocks(); test_unicode_refs(); test_bank_id_collision(); test_content_versions(); }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

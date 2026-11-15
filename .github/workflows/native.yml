@@ -7,15 +7,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-latest]
+        # windows-latest builds with MSVC, whose /utf-8 and Unicode argument handling the README describes.
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNOETHER_WARNINGS_AS_ERRORS=ON
-      - run: cmake --build build --parallel
-      - run: ctest --test-dir build --output-on-failure
+      # Visual Studio is a multi-configuration generator, which ignores CMAKE_BUILD_TYPE.
+      - run: cmake --build build --parallel --config Release
+      - run: ctest --test-dir build --output-on-failure -C Release
       - if: runner.os == 'Linux'
         run: |
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DNOETHER_SANITIZERS=ON
