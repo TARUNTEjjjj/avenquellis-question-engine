@@ -138,11 +138,11 @@ const upload=(port,start,{path='/generate',type='application/json'}={})=>new Pro
 });
 // The same upload on a raw socket, which keeps sending when the reply arrives. Any connection error is
 // the outcome, also one that comes after the reply.
-const rawUpload=(port,body,{path='/generate',type='application/json',chunked=false}={})=>new Promise(resolve=>{
+const rawUpload=(port,body,{method='POST',path='/generate',type='application/json',chunked=false}={})=>new Promise(resolve=>{
  const socket=connect(port,'127.0.0.1');let text='',failure;
  socket.on('data',data=>{text+=data;});socket.on('error',error=>{failure??=error.code;});
  socket.on('close',()=>resolve(failure??Number(text.slice(9,12))));
- socket.write(`POST ${path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: ${type}\r\n`);
+ socket.write(`${method} ${path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: ${type}\r\n`);
  if(chunked) {socket.write(`Transfer-Encoding: chunked\r\n\r\n${body.length.toString(16)}\r\n`);socket.write(body);socket.write('\r\n0\r\n\r\n');}
  else {socket.write(`Content-Length: ${body.length}\r\n\r\n`);socket.write(body);}
 });
@@ -192,6 +192,25 @@ test('HTTP API reads a refused upload to its end before it closes the connection
   assert.deepEqual(outcomes,Array(20).fill(status),`${status}, streamed by Node's client`);
  }
 });
+// The practice view and the resource catalog refuse a large upload in the same way. The catalog also
+// answers a GET that carries a body while that body is still arriving.
+for(const [status,path,method='POST'] of [[413,'/generate?view=practice'],[413,'/mock?view=practice'],[404,'/bank?view=practice'],[400,'/mock?view=typo'],[405,'/api/resources'],[200,'/api/resources?limit=1','GET']])
+ test(`HTTP API delivers ${status} for a large upload to ${method} ${path} instead of resetting it`,async t=>{
+  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const port=server.address().port,body=Buffer.alloc(1_000_000,' ');
+  for(const chunked of [false,true]) {
+   const outcomes=[];
+   for(let i=0;i<20;i++) outcomes.push(await rawUpload(port,body,{method,path,chunked}));
+   assert.deepEqual(outcomes,Array(20).fill(status),`raw socket, chunked: ${chunked}`);
+  }
+  assert.equal(await rawUpload(port,Buffer.alloc(8*1024*1024,' '),{method,path}),status);
+  // Node's client sends a GET body without a length, which is not a body at all.
+  if(method!=='POST') return;
+  const outcomes=[];
+  for(let i=0;i<20;i++) outcomes.push(await upload(port,req=>req.end(body),{path}));
+  assert.deepEqual(outcomes,Array(20).fill(status),"Node's client");
+ });
 test('HTTP API answers 404 and 415 at once for a request without a body',async t=>{
  const server=createApp();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>server.close(resolve)));
@@ -203,8 +222,9 @@ test('HTTP API answers 404 and 415 at once for a request without a body',async t
   socket.end(bytes);
  });
  // Without Content-Length or Transfer-Encoding, the bytes after the head are not a body. Node's
- // http.request sends a GET or DELETE body this way. The 404 or 415 must come before Node's 400 for them.
- for(const [expected,head] of [[404,'GET /nope'],[404,'DELETE /generate'],[415,'POST /generate']])
+ // http.request sends a GET or DELETE body this way. The 404 or 415 must come before Node's 400 for them,
+ // and so must the catalog's 405.
+ for(const [expected,head] of [[404,'GET /nope'],[404,'DELETE /generate'],[415,'POST /generate'],[405,'DELETE /api/resources']])
   assert.equal(await status(`${head} HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\r\n{}`),expected,head);
 });
 test('HTTP API stops reading an upload that never ends',async t=>{
@@ -260,6 +280,7 @@ test('HTTP API answers a refused upload that stalls and closes its connection at
   [413,head('/generate','application/json')+'Transfer-Encoding: chunked\r\n\r\n4001\r\n'+' '.repeat(16385)+'\r\n'],
   [404,head('/nope','application/json')+'Content-Length: 20000\r\n\r\n{'],
   [415,head('/generate','text/plain')+'Content-Length: 20000\r\n\r\n{'],
+  [405,head('/api/resources','application/json')+'Content-Length: 20000\r\n\r\n{'],
  ].map(async([status,bytes])=>{
   const started=performance.now();
   const {text,closed}=await new Promise(resolve=>{

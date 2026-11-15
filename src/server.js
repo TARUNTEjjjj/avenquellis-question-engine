@@ -61,11 +61,11 @@ export function createApp({bodyTimeoutMs=10000}={}) {
   // It is answered at once and keeps its connection: bytes after it start the next request, and if they
   // are not valid HTTP, Node would otherwise answer 400 before this reply is sent.
   const hasBody=req.headers['transfer-encoding']!==undefined||Number(req.headers['content-length'])>0;
-  const send=(status,data)=>{
+  const send=(status,data,headers={})=>{
    if(req.aborted||res.destroyed)return;
    const body=JSON.stringify(data),unfinished=hasBody&&!req.complete,left=Math.ceil(deadline-performance.now());
    if(unfinished)res.shouldKeepAlive=false;
-   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Length':Buffer.byteLength(body)});
+   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Length':Buffer.byteLength(body),...headers});
    if(!unfinished||left<=0)return res.end(body);
    // The client is still uploading. The reply goes out now, complete, and announces that the connection
    // will close. Closing it right away would often reset the connection while the client is sending,
@@ -77,7 +77,7 @@ export function createApp({bodyTimeoutMs=10000}={}) {
   try {
    const url=new URL(req.url,'http://localhost');
    // Only the catalog route waits here, so that every other reply to a request without a body is immediate.
-   if(url.pathname==='/api/resources'&&await handleResources(req,res)) return;
+   if(url.pathname==='/api/resources'&&await handleResources(req,send)) return;
    if(req.method==='GET' && url.pathname==='/health') return send(200,{status:'ok',...engineInfo});
    if(req.method==='GET' && url.pathname==='/topics') return send(200,{topics});
    const view=url.searchParams.get('view')||'solutions';

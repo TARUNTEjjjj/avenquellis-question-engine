@@ -5,17 +5,14 @@ import {readCatalog, queryCatalog} from '../scripts/resources/resource-catalog.m
 const configPath = new URL('../resources/sources.json', import.meta.url);
 const snapshotPath = fileURLToPath(new URL('../resources/catalog.json', import.meta.url));
 
-/** Public metadata only. Refresh is an offline/server job, never visitor-triggered. */
-export async function handleResources(req, res) {
+/**
+ * Public metadata only. Refresh is an offline/server job, never visitor-triggered.
+ * Replies go through the service's own send, so this route ends its connections as every other route does.
+ */
+export async function handleResources(req, reply) {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname !== '/api/resources') return false;
-  const send = (status, body, headers = {}) => {
-    if (req.aborted || res.destroyed) return true;
-    if (!req.complete) res.shouldKeepAlive = false;
-    res.writeHead(status, {'Content-Type':'application/json; charset=utf-8', 'X-Content-Type-Options':'nosniff', 'Cache-Control':'no-store', ...headers});
-    res.end(JSON.stringify(body));
-    return true;
-  };
+  const send = (status, body, headers) => { reply(status, body, headers); return true; };
   if (req.method !== 'GET') return send(405, {error:'Use GET.'}, {'Allow':'GET'});
   if ([...url.searchParams.keys()].some(key => !['category','q','limit'].includes(key))) return send(400, {error:'Unknown resource filter.'});
   const rawLimit = url.searchParams.get('limit');
