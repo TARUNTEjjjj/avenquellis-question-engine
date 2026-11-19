@@ -1,0 +1,15 @@
+{
+  "checkedOn": "2026-01-01",
+  "policy": "Synthetic registry for tests. None of these papers exist.",
+  "archives": [
+    {"id": "synthetic", "exam": "ISI", "title": "Synthetic fixture archive", "url": "https://example.invalid/", "publisher": "Synthetic Fixture Press", "kind": "official-archive"}
+  ],
+  "papers": [
+    {"id": "synthetic-sample-2001", "exam": "ISI", "year": 2001, "title": "Synthetic sample document", "url": "https://example.invalid/synthetic-sample-2001.pdf", "kind": "official-sample", "questionCount": 2},
+    {"id": "synthetic-paper-2001", "exam": "ISI", "year": 2001, "title": "Synthetic paper", "url": "https://example.invalid/synthetic-paper-2001.pdf", "kind": "official-paper", "questionCount": 2}
+  ],
+  "chapterIndex": [
+    {"exam": "ISI", "year": 2001, "paperId": "synthetic-sample-2001", "question": 1, "topic": "geometry", "summary": "Synthetic fixture record."},
+    {"exam": "ISI", "year": 2001, "paperId": "synthetic-paper-2001", "question": 2, "topic": "geometry", "summary": "Synthetic fixture record."}
+  ]
+}

@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+      - run: npm run historical:check
       # Saved references resolve only to the content of their family@version, so a recorded content fingerprint
       # never changes. Compare the record with the pull request's base, or with main's previous tip.
       - if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
