@@ -170,7 +170,16 @@ test('CLI runs the same command through a symlink, keeps failure status, and doe
   const { directory } = await fixture(t);
   const script = fileURLToPath(new URL('./resource-server.mjs', import.meta.url));
   const link = join(directory, 'resources.mjs');
-  await symlink(script, link);
+  try {
+    await symlink(script, link);
+  } catch (error) {
+    // Windows allows symlinks only with Developer Mode or an elevated shell.
+    if (process.platform === 'win32' && (error.code === 'EPERM' || error.code === 'EACCES')) {
+      t.skip(`cannot create a symlink here (${error.code})`);
+      return;
+    }
+    throw error;
+  }
   const run = (...args) => spawnSync(process.execPath, args, { encoding: 'utf8', timeout: 5000 });
   const direct = run(script, 'help');
   const linked = run(link, 'help');
