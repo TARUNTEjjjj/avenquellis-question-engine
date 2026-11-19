@@ -17,6 +17,8 @@ const DIAGRAM_METHODS=['redrawn','source-image'];
 const SYNTHETIC_HOST='example.invalid';
 const ID=/^hist-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DIAGRAM_ID=/^[a-z0-9][a-z0-9-]{0,39}$/;
+export const DIAGRAM_FILE=/^diagrams\/[a-z0-9][a-z0-9._-]*\.(svg|png)$/;
+const DIGEST=/^sha256:[0-9a-f]{64}$/;
 const PLACEHOLDER=/\[\[diagram:([^\]]*)\]\]/g;
 
 const isObject=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -38,17 +40,25 @@ function onlyKeys(object,allowed,where,errors) {
 
 /** The question identifier is derived from the source, so one source question has exactly one record. */
 export function historicalId(source) {
- const section=source.section?`${source.section.toLowerCase()}`:'';
- const part=source.part?`-${source.part.toLowerCase()}`:'';
+ const section=typeof source.section==='string'?source.section.toLowerCase():'';
+ const part=typeof source.part==='string'&&source.part?`-${source.part.toLowerCase()}`:'';
  return `hist-${source.paperId}-${section}q${source.question}${part}`;
 }
 
-/** SHA-256 over everything a verifier confirms. Editing any of it after verification voids the verification. */
+/** The digest of a diagram file's bytes, recorded in the diagram's entry so that the content digest covers the image itself. */
+export function diagramDigest(bytes) {
+ return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+}
+
+/**
+ * SHA-256 over everything a verifier confirms. Editing any of it after verification voids the verification.
+ * Each diagram's entry carries the digest of its file, so replacing an image also voids it.
+ */
 export function contentDigest(record) {
  const t=record.transcription||{};
  const canonical=JSON.stringify([record.id,record.source.paperId,record.source.url,record.source.classification,
   record.source.publisherLabel??null,record.chapters,t.statement??null,
-  (t.diagrams||[]).map(d=>[d.id,d.file,d.alt,d.method,d.sourcePage??null])]);
+  (t.diagrams||[]).map(d=>[d.id,d.file,d.digest??null,d.alt,d.method,d.sourcePage??null])]);
  return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
 }
 
@@ -72,7 +82,7 @@ function validateSource(record,where,registry,errors,synthetic) {
  const url=httpsUrl(source.url);
  if(!url)errors.push(`${where}: source.url must be an https URL.`);
  else if(synthetic!==(url.hostname===SYNTHETIC_HOST))errors.push(synthetic?`${where}: a synthetic record must use an ${SYNTHETIC_HOST} URL.`:`${where}: ${SYNTHETIC_HOST} URLs are reserved for synthetic test records.`);
- if(typeof source.paperId==='string'&&Number.isInteger(source.question)&&record.id!==historicalId(source))errors.push(`${where}: id must be ${historicalId(source)}, derived from the source.`);
+ if(typeof source.paperId==='string'&&Number.isInteger(source.question)&&[source.section,source.part].every(v=>v===undefined||typeof v==='string')&&record.id!==historicalId(source))errors.push(`${where}: id must be ${historicalId(source)}, derived from the source.`);
  if(!registry)return;
  // Cross-check the record against the official-source registry (data/sources.json).
  const paper=registry.papers.find(p=>p.id===source.paperId);
@@ -81,7 +91,9 @@ function validateSource(record,where,registry,errors,synthetic) {
  if(paper.exam!==source.exam)errors.push(`${where}: exam ${source.exam} differs from the registry's ${paper.exam}.`);
  if(paper.year!==source.year)errors.push(`${where}: year ${source.year} differs from the registry's ${paper.year}.`);
  if(paper.url!==source.url&&paper.solutionsUrl!==source.url)errors.push(`${where}: source.url is not a document the registry lists for ${paper.id}.`);
- if(paper.kind!==source.classification)errors.push(`${where}: classification ${source.classification} differs from the registry's ${paper.kind}.`);
+ // A record taken from a paper's separate solutions document is classified as official solutions, not as the paper.
+ const kind=paper.solutionsUrl!==undefined&&source.url===paper.solutionsUrl&&paper.url!==source.url?'official-solutions':paper.kind;
+ if(kind!==source.classification)errors.push(`${where}: classification ${source.classification} differs from the registry's ${kind}.`);
  if(archive&&archive.publisher!==source.publisher)errors.push(`${where}: publisher differs from the registry's "${archive.publisher}".`);
  if(Number.isInteger(paper.questionCount)&&source.question>paper.questionCount)errors.push(`${where}: ${paper.id} has only ${paper.questionCount} questions.`);
 }
@@ -118,12 +130,13 @@ function validateTranscription(record,where,errors) {
  t.diagrams.forEach((d,i)=>{
   const at=`${where}.transcription.diagrams[${i}]`;
   if(!isObject(d))return errors.push(`${at}: must be an object.`);
-  onlyKeys(d,['id','file','alt','method','sourcePage'],at,errors);
+  onlyKeys(d,['id','file','digest','alt','method','sourcePage'],at,errors);
   if(typeof d.id!=='string'||!DIAGRAM_ID.test(d.id))errors.push(`${at}: id must be lowercase letters, digits and hyphens.`);
   else if(ids.has(d.id))errors.push(`${at}: duplicate diagram id ${d.id}.`);
   else ids.add(d.id);
   // Diagrams live beside the bank. The path cannot leave that folder.
-  if(typeof d.file!=='string'||!/^diagrams\/[a-z0-9][a-z0-9._-]*\.(svg|png)$/.test(d.file)||d.file.includes('..'))errors.push(`${at}: file must be diagrams/<name>.svg or .png.`);
+  if(typeof d.file!=='string'||!DIAGRAM_FILE.test(d.file)||d.file.includes('..'))errors.push(`${at}: file must be diagrams/<name>.svg or .png.`);
+  if(typeof d.digest!=='string'||!DIGEST.test(d.digest))errors.push(`${at}: digest must be the sha256 of the diagram file.`);
   if(!text(d.alt,2000))errors.push(`${at}: alt text describing the diagram is required.`);
   if(!DIAGRAM_METHODS.includes(d.method))errors.push(`${at}: method must be redrawn or source-image.`);
   else if(d.method==='source-image'&&record.reuse?.coversDiagrams!==true)errors.push(`${at}: copying a source image needs reuse.coversDiagrams.`);
@@ -148,7 +161,7 @@ function validateVerification(record,where,errors) {
  if(!isDate(v.verifiedOn))errors.push(`${where}: verification.verifiedOn must be a YYYY-MM-DD date.`);
  if(!httpsUrl(v.checkedAgainst))errors.push(`${where}: verification.checkedAgainst must be the https source document that was compared.`);
  if(!Array.isArray(v.checks)||new Set(v.checks).size!==v.checks.length||v.checks.some(c=>!VERIFICATION_CHECKS.includes(c)))errors.push(`${where}: verification.checks must list distinct checks from ${VERIFICATION_CHECKS.join(', ')}.`);
- if(typeof v.contentDigest!=='string'||!/^sha256:[0-9a-f]{64}$/.test(v.contentDigest))errors.push(`${where}: verification.contentDigest is required.`);
+ if(typeof v.contentDigest!=='string'||!DIGEST.test(v.contentDigest))errors.push(`${where}: verification.contentDigest is required.`);
  if(v.notes!==undefined&&!text(v.notes,2000))errors.push(`${where}: verification.notes must be text.`);
 }
 
@@ -282,7 +295,7 @@ export function importTranscription(bank,id,draft,options) {
 
 /** Record a verifier's confirmation of the current content against the source document. */
 export function recordVerification(bank,id,{verifiedBy,verifiedOn,checkedAgainst,checks,notes},options) {
- return checked(replace(bank,id,record=>{
+ const next=checked(replace(bank,id,record=>{
   if(!record.transcription)throw new RangeError(`${id}: import a transcription before verifying it.`);
   const missing=VERIFICATION_CHECKS.filter(c=>!checks?.includes(c));
   if(missing.length)throw new RangeError(`${id}: verification must confirm ${missing.join(', ')}.`);
@@ -292,4 +305,9 @@ export function recordVerification(bank,id,{verifiedBy,verifiedOn,checkedAgainst
   verified.verification.contentDigest=contentDigest(verified);
   return verified;
  }),options);
+ // Refuse a verification that the gate would not accept, such as one dated before the transcription,
+ // rather than record it and leave the question silently excluded.
+ const reason=exclusionReason(next.records.find(r=>r.id===id));
+ if(reason)throw new RangeError(`${id}: this verification would leave the question excluded (${reason}).`);
+ return next;
 }

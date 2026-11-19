@@ -7,19 +7,30 @@
 // Every command takes --bank FILE (default data/historical/bank.json) and --registry FILE (default data/sources.json).
 // --allow-synthetic admits the synthetic test fixtures; never use it on the committed bank.
 // A command that changes the bank writes it only when the whole result validates.
-import {existsSync,readFileSync,realpathSync,writeFileSync,renameSync} from 'node:fs';
+import {readFileSync,realpathSync,writeFileSync,renameSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
-import {validateHistoricalBank,usableHistoricalQuestions,recordReuseDecision,importTranscription,recordVerification} from '../../src/historical.js';
+import {validateHistoricalBank,usableHistoricalQuestions,recordReuseDecision,importTranscription,recordVerification,diagramDigest,DIAGRAM_FILE} from '../../src/historical.js';
+import {diagramFileErrors} from '../../src/historical-api.js';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const readJson=path=>JSON.parse(readFileSync(path,'utf8'));
 
-/** Diagram files are checked here rather than in src/historical.js, which does not read the file system. */
-export function missingDiagrams(bank,bankPath) {
- const folder=dirname(bankPath);
- return bank.records.flatMap(r=>(r.transcription?.diagrams||[]).filter(d=>!existsSync(join(folder,d.file))).map(d=>`${r.id}: diagram file ${d.file} is missing.`));
+/**
+ * Record the digest of each draft diagram's file, which the verification's content digest then covers.
+ * A digest already in the draft must match the file.
+ */
+function withDiagramDigests(draft,bankPath) {
+ if(!Array.isArray(draft?.diagrams))return draft;
+ return {...draft,diagrams:draft.diagrams.map(d=>{
+  if(d===null||typeof d!=='object'||typeof d.file!=='string'||!DIAGRAM_FILE.test(d.file))return d;
+  let bytes;
+  try{bytes=readFileSync(join(dirname(bankPath),d.file));}catch{throw new RangeError(`diagram file ${d.file} is missing.`);}
+  const digest=diagramDigest(bytes);
+  if(d.digest!==undefined&&d.digest!==digest)throw new RangeError(`diagram file ${d.file} does not match the draft's digest.`);
+  return {...d,digest};
+ })};
 }
 
 export function run(argv,{log=console.log,error=console.error}={}) {
@@ -34,7 +45,7 @@ export function run(argv,{log=console.log,error=console.error}={}) {
  const options={registry:readJson(values.registry),allowSynthetic:values['allow-synthetic']===true};
  const bank=readJson(values.bank);
  const save=next=>{
-  const missing=missingDiagrams(next,values.bank);
+  const missing=diagramFileErrors(next,values.bank);
   if(missing.length)throw new RangeError(missing.join('\n'));
   // Write a sibling file and rename it, so an interrupted write cannot leave a truncated bank.
   const temporary=`${values.bank}.tmp`;
@@ -44,7 +55,7 @@ export function run(argv,{log=console.log,error=console.error}={}) {
  const need=(...keys)=>{for(const key of keys)if(values[key]===undefined)throw new RangeError(`${command} needs --${key}.`);};
  if(command==='check'){
   if(id)throw new RangeError('check takes no record id.');
-  const errors=[...validateHistoricalBank(bank,options),...missingDiagrams(bank,values.bank)];
+  const errors=[...validateHistoricalBank(bank,options),...diagramFileErrors(bank,values.bank)];
   if(errors.length){error(errors.join('\n'));return 1;}
   const {questions,excluded}=usableHistoricalQuestions(bank,options);
   log(`${bank.records.length} source records valid; ${questions.length} usable; excluded: ${Object.entries(excluded).map(([k,v])=>`${k} ${v}`).join(', ')||'none'}.`);
@@ -59,7 +70,7 @@ export function run(argv,{log=console.log,error=console.error}={}) {
   save(recordReuseDecision(bank,id,reuse,options));
  } else if(command==='import'){
   need('draft');
-  save(importTranscription(bank,id,readJson(values.draft),options));
+  save(importTranscription(bank,id,withDiagramDigests(readJson(values.draft),values.bank),options));
  } else if(command==='verify'){
   need('by','on','checked-against','checks');
   save(recordVerification(bank,id,{verifiedBy:values.by,verifiedOn:values.on,checkedAgainst:values['checked-against'],

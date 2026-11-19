@@ -9,7 +9,8 @@ import {once} from 'node:events';
 import {questionBank,getQuestion,resolveQuestionRef,generateMock} from '../src/index.js';
 import {createApp} from '../src/server.js';
 import {validateHistoricalBank,usableHistoricalQuestions,exclusionReason,historicalSourceIndex,recordReuseDecision,
- importTranscription,recordVerification,historicalId,VERIFICATION_CHECKS,SAMPLE_LABEL} from '../src/historical.js';
+ importTranscription,recordVerification,historicalId,contentDigest,VERIFICATION_CHECKS,SAMPLE_LABEL} from '../src/historical.js';
+import {diagramFileErrors} from '../src/historical-api.js';
 import {run} from '../scripts/historical/historical-bank.mjs';
 
 const read=path=>JSON.parse(readFileSync(new URL(path,import.meta.url),'utf8'));
@@ -66,8 +67,18 @@ test('source records are cross-checked against the official-source registry',()=
   [b=>{record(b,id).verifed=null;},/unknown field "verifed"/],
   [b=>{b.records.push(structuredClone(record(b,id)));},/duplicate id/],
   [b=>{b.records.push(fixture().records[1]);},/synthetic test records cannot enter the committed bank/],
+  // A question taken from a paper's separate solutions document is not classified as the paper.
+  [b=>{record(b,id).source.url=registry.papers.find(p=>p.id==='cmi-2025').solutionsUrl;},/classification official-paper differs from the registry's official-solutions/],
  ];
  for(const [mutate,pattern] of cases)assert.match(errorsFor(mutate).join('\n'),pattern,String(mutate));
+ assert.deepEqual(errorsFor(b=>{const s=record(b,id).source;s.url=registry.papers.find(p=>p.id==='cmi-2025').solutionsUrl;s.classification='official-solutions';}),[]);
+});
+
+test('malformed source identifiers are reported as errors rather than crashing the validator',()=>{
+ for(const [key,value] of [['section',5],['section',true],['section',{}],['part',1],['part',['a']],['part','']]){
+  const errors=errorsFor(b=>{record(b,'hist-cmi-2025-aq2').source[key]=value;});
+  assert.match(errors.join('\n'),new RegExp(`source.${key} must be`),`${key}=${JSON.stringify(value)}`);
+ }
 });
 
 test('reuse decisions are documented, and only a reproducing decision admits question text',()=>{
@@ -116,6 +127,9 @@ test('the verification gate admits only an independent, complete verification of
  assert.equal(reason(r=>{r.chapters=['geometry','algebra'];}),'changed-since-verification');
  assert.equal(reason(r=>{r.transcription.diagrams[0].alt='Changed.';}),'changed-since-verification');
  assert.equal(reason(r=>{r.transcription.diagrams[0].sourcePage=2;}),'changed-since-verification');
+ // The verified digest covers the diagram's image through the digest recorded for its file.
+ assert.equal(reason(r=>{r.transcription.diagrams[0].digest=`sha256:${'0'.repeat(64)}`;}),'changed-since-verification');
+ assert.match(validateHistoricalBank((b=>{delete record(b,VERIFIED).transcription.diagrams[0].digest;return b;})(fixture()),synthetic).join('\n'),/digest must be the sha256/);
  const invalid=fixture();record(invalid,VERIFIED).verification.status='draft';
  assert.throws(()=>usableHistoricalQuestions(invalid,synthetic),/Invalid historical bank/);
 });
@@ -133,6 +147,8 @@ test('the editorial workflow records reuse, imports, verifies, and re-verifies a
  assert.throws(()=>recordVerification(imported,PENDING,{...verification,checks:['statement']},synthetic),/must confirm diagrams/);
  assert.throws(()=>recordVerification(imported,PENDING,{...verification,checkedAgainst:'https://example.invalid/elsewhere.pdf'},synthetic),/source document/);
  assert.throws(()=>recordVerification(b,PENDING,verification,synthetic),/import a transcription/);
+ // A verification the gate would not accept is refused, not recorded and silently excluded.
+ assert.throws(()=>recordVerification(imported,PENDING,{...verification,verifiedOn:'2026-01-09'},synthetic),/would leave the question excluded \(out-of-order-dates\)/);
  const verified=recordVerification(imported,PENDING,verification,synthetic);
  assert.equal(exclusionReason(record(verified,PENDING)),null);
  assert.equal(usableHistoricalQuestions(verified,synthetic).questions.length,2);
@@ -204,6 +220,28 @@ test('the editorial CLI checks the committed bank and edits a bank only when the
  assert.throws(()=>run(['import',PENDING,'--draft',join(dir,'synthetic-draft.json'),...args],quiet),/diagram file diagrams\/synthetic-square.svg is missing/);
  assert.equal(readFileSync(path,'utf8'),before);
  assert.equal(run(['check',...args],quiet),1);
+ // Replacing a diagram's image after verification fails the check, as it would fail the HTTP route.
+ cpSync(new URL('diagrams/synthetic-square.svg',fixtures),join(dir,'diagrams/synthetic-square.svg'));
+ assert.equal(run(['check',...args],quiet),0);
+ writeFileSync(join(dir,'diagrams/synthetic-square.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>A different figure</text></svg>\n');
+ assert.deepEqual(diagramFileErrors(JSON.parse(readFileSync(path,'utf8')),path),[
+  `${VERIFIED}: diagram file diagrams/synthetic-square.svg does not match its recorded digest.`,`${PENDING}: diagram file diagrams/synthetic-square.svg does not match its recorded digest.`]);
+ assert.equal(run(['check',...args],quiet),1);
+ assert.throws(()=>run(['import',PENDING,'--draft',join(dir,'synthetic-draft.json'),...args],quiet),/does not match the draft's digest/);
+ assert.equal(readFileSync(path,'utf8'),before);
+ // Every diagram in the bank is checked, so no record can be imported while another's image is wrong.
+ const fresh=JSON.parse(readFileSync(join(dir,'synthetic-draft.json'),'utf8'));delete fresh.diagrams[0].digest;fresh.diagrams[0].file='diagrams/fresh.svg';
+ writeFileSync(join(dir,'fresh.json'),JSON.stringify(fresh));
+ writeFileSync(join(dir,'diagrams/fresh.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>Fresh</text></svg>\n');
+ assert.throws(()=>run(['import',PENDING,'--draft',join(dir,'fresh.json'),...args],quiet),new RegExp(`${VERIFIED}: .* does not match`));
+ // Without a digest in the draft, import records the digest of the file as it is now, and verification must follow.
+ cpSync(new URL('diagrams/synthetic-square.svg',fixtures),join(dir,'diagrams/synthetic-square.svg'));
+ run(['import',PENDING,'--draft',join(dir,'fresh.json'),...args],quiet);
+ const reimported=record(JSON.parse(readFileSync(path,'utf8')),PENDING);
+ assert.notEqual(reimported.transcription.diagrams[0].digest,record(fixture(),VERIFIED).transcription.diagrams[0].digest);
+ assert.equal(reimported.verification,null);
+ assert.equal(run(['check',...args],quiet),0);
+ assert.equal(contentDigest(record(fixture(),VERIFIED)),record(fixture(),VERIFIED).verification.contentDigest);
  writeFileSync(join(dir,'extra.json'),'{}');
  assert.throws(()=>run(['import',PENDING,'--draft',join(dir,'extra.json'),...args],quiet),/statement is required/);
 });

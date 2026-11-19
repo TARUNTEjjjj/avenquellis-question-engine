@@ -13,7 +13,7 @@ Each record in `data/historical/bank.json` has these fields. Unknown fields are 
 | `id` | `hist-<paperId>-<section>q<number>[-<part>]`, derived from the source, such as `hist-cmi-2025-aq2` or `hist-isi-ugb-2024-q1`. One source question has exactly one record. The `hist-` prefix never names a generated question. |
 | `source.publisher` | The institution, equal to the registry archive's publisher. |
 | `source.exam`, `source.year`, `source.paperId` | The paper, which must be listed in `data/sources.json` with the same exam and year. |
-| `source.classification` | `official-paper`, `official-sample` or `official-solutions`, equal to the registry paper's `kind`. |
+| `source.classification` | `official-paper`, `official-sample` or `official-solutions`, equal to the registry paper's `kind`, except that a record whose `source.url` is the paper's separate `solutionsUrl` is `official-solutions`. |
 | `source.publisherLabel` | Required for an `official-sample` and only there. It must be exactly `Sample Questions`, the label ISI gives its archive documents, so the label is neither dropped nor attached to a paper that was not published under it. |
 | `source.section`, `source.question`, `source.part` | The printed question identifier: an optional section letter such as `A`, the question number (at most the paper's `questionCount`) and an optional part such as `b` or `iii`. |
 | `source.url` | The publisher's document, which must be the registry paper's `url` or `solutionsUrl`. `source.page` may give the page. |
@@ -65,7 +65,7 @@ Use `scripts/historical/historical-bank.mjs` from the repository root. Each comm
    node scripts/historical/historical-bank.mjs import hist-isi-ugb-2024-q3 --draft draft.json
    ```
 
-   Transcribe the wording, notation, numbering and given values exactly, and do not add solutions. Mathematical notation may be written in plain text or LaTeX; note any rendering choice in `notes`. Diagrams are files in `data/historical/diagrams/`. Each has alt text, appears in the statement exactly once as `[[diagram:<id>]]`, and is `redrawn` unless `reuse.coversDiagrams` allows a `source-image`. `chapters` is optional and replaces the record's chapter tags. Importing again replaces the transcription and clears any verification.
+   Transcribe the wording, notation, numbering and given values exactly, and do not add solutions. Mathematical notation may be written in plain text or LaTeX; note any rendering choice in `notes`. Diagrams are files in `data/historical/diagrams/`. The import records each file's SHA-256 as the diagram's `digest`; a `digest` written in the draft must match the file. Each has alt text, appears in the statement exactly once as `[[diagram:<id>]]`, and is `redrawn` unless `reuse.coversDiagrams` allows a `source-image`. `chapters` is optional and replaces the record's chapter tags. Importing again replaces the transcription and clears any verification.
 
 3. **Verify.** A second editor, not the transcriber, compares the record with the source document and confirms all five checks: `statement`, `diagrams`, `chapters`, `classification` and `question-identifier`.
 
@@ -75,9 +75,9 @@ Use `scripts/historical/historical-bank.mjs` from the repository root. Each comm
      --checks statement,diagrams,chapters,classification,question-identifier
    ```
 
-   The verification stores a SHA-256 `contentDigest` of the record's identifier, source, classification, label, chapters, statement and diagrams.
+   The verification stores a SHA-256 `contentDigest` of the record's identifier, source paper and URL, classification, label, chapters, statement and diagram entries, including each diagram file's recorded digest, so replacing an image also voids the verification. A verification that the gate would not accept, such as one dated before the transcription, is refused rather than recorded.
 
-4. **Check** with `npm run historical:check`, which CI also runs. It validates the bank and the registry cross-checks, confirms that every diagram file exists, and reports how many questions are usable and why the rest are excluded.
+4. **Check** with `npm run historical:check`, which CI also runs. It validates the bank and the registry cross-checks, confirms that every diagram file exists and still matches its recorded digest, and reports how many questions are usable and why the rest are excluded.
 
 ## Verification gate
 
@@ -94,7 +94,7 @@ Use `scripts/historical/historical-bank.mjs` from the repository root. Each comm
 | `checked-against-other-document` | The verifier compared the record's own `source.url`. |
 | `changed-since-verification` | The content digest still matches. Any later edit to verified content requires a new verification. |
 
-An invalid bank is never partly served: the gate throws, and the HTTP routes answer 503. The verifier's name and date are records of an editorial step, not proof that it happened; the gate enforces that the step was recorded, complete and independent of the transcription, and that nothing changed after it.
+An invalid bank is never partly served: the gate throws, and the HTTP routes answer 503, as they do when a diagram file is missing or no longer matches its recorded digest. The verifier's name and date are records of an editorial step, not proof that it happened; the gate enforces that the step was recorded, complete and independent of the transcription, and that nothing changed after it.
 
 ## API separation
 

@@ -32,6 +32,7 @@
           {
             "id": "square",
             "file": "diagrams/synthetic-square.svg",
+            "digest": "sha256:c9ec0cdd4801003087a394e7dafbaa47dcc67e4fe60018dc9a035a0740d65797",
             "alt": "A square with side length 1.",
             "method": "redrawn",
             "sourcePage": 1
@@ -53,7 +54,7 @@
           "classification",
           "question-identifier"
         ],
-        "contentDigest": "sha256:037385dc12f9970175652cdb7bc90dcf4805f4e2c349ecbffeb2ca8b360159ec"
+        "contentDigest": "sha256:ffcfcc4e79778302052d5b493f6669b4769e6e3ad04bf5d5f3f5a4180861d13b"
       }
     },
     {
