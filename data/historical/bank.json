@@ -1,0 +1,506 @@
+{
+  "schemaVersion": 1,
+  "policy": "Official papers are linked rather than republished. A question text enters this file only after the owner records permission-granted or open-licence for it, and is served only after an independent editor verifies the transcription against the source document. See docs/historical-bank.md.",
+  "records": [
+    {
+      "id": "hist-cmi-2025-aq2",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 2,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "probability"
+      ],
+      "summary": "Randomly divide an integer set into two parts.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq6",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 6,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "geometry"
+      ],
+      "summary": "Find the closest point on a plane.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq7",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 7,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "Evaluate an iterated logarithmic and integral limit.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq8",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 8,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "geometry"
+      ],
+      "summary": "Identify a fixed-angle planar locus.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq10",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 10,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "Minimize distance to a bounded parabola.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq12",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 12,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "combinatorics"
+      ],
+      "summary": "Count constrained integer tuples.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq13",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 13,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "algebra"
+      ],
+      "summary": "Complete a polynomial factorization proof.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-cmi-2025-aq15",
+      "source": {
+        "publisher": "Chennai Mathematical Institute",
+        "exam": "CMI",
+        "paperId": "cmi-2025",
+        "year": 2025,
+        "classification": "official-paper",
+        "section": "A",
+        "question": 15,
+        "url": "https://www.cmi.ac.in/admissions/sample-qp/ugmath2025.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "number-theory"
+      ],
+      "summary": "Complete an infinite-descent argument.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q1",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 1,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "Asymptotic growth of a sum of cube roots.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q2",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 2,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "algebra"
+      ],
+      "summary": "Classify real roots of a parameterized polynomial.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q3",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 3,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "geometry"
+      ],
+      "summary": "An area identity from squares built on quadrilateral sides.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q4",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 4,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "Differentiability of a product with an oscillating sine.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q5",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 5,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "Relate a limit at a polynomial root to its multiplicity.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q6",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 6,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "algebra"
+      ],
+      "summary": "Bounds for an expression under a nonnegative sum constraint.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q7",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 7,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "calculus"
+      ],
+      "summary": "A related-rates problem for a container of revolution.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-isi-ugb-2024-q8",
+      "source": {
+        "publisher": "Indian Statistical Institute",
+        "exam": "ISI",
+        "paperId": "isi-ugb-2024",
+        "year": 2024,
+        "classification": "official-sample",
+        "publisherLabel": "Sample Questions",
+        "question": 8,
+        "url": "https://admission.isical.ac.in/PreviousQuestion/BStat-BMath-UGB-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "combinatorics"
+      ],
+      "summary": "Bounds on ordered tournament scores.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q1",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 1,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "combinatorics"
+      ],
+      "summary": "Construct or rule out permutations with constrained prefix sums.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q2",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 2,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "number-theory"
+      ],
+      "summary": "Classify integers using a sum of division remainders.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q3",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 3,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "geometry"
+      ],
+      "summary": "A relation among centres of an isosceles triangle.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q4",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 4,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "algebra"
+      ],
+      "summary": "Bound the distance between two of four real numbers.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q5",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 5,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "geometry"
+      ],
+      "summary": "A length identity in a cyclic trapezium.",
+      "transcription": null,
+      "verification": null
+    },
+    {
+      "id": "hist-rmo-2024-q6",
+      "source": {
+        "publisher": "Homi Bhabha Centre for Science Education, TIFR",
+        "exam": "RMO",
+        "paperId": "rmo-2024",
+        "year": 2024,
+        "classification": "official-solutions",
+        "question": 6,
+        "url": "https://olympiads.hbcse.tifr.res.in/wp-content/uploads/2026/10/Official-Solutions-for-RMO-2024.pdf"
+      },
+      "reuse": {
+        "decision": "pending-review",
+        "basis": "No reproduction permission is recorded. Until the owner records a decision, the question is linked, not reproduced."
+      },
+      "chapters": [
+        "number-theory"
+      ],
+      "summary": "Count divisibility chains ending at a prime-power product.",
+      "transcription": null,
+      "verification": null
+    }
+  ]
+}

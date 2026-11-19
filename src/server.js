@@ -1,4 +1,5 @@
 import {handleResources} from './resources.js';
+import {handleHistorical} from './historical-api.js';
 import {createServer} from 'node:http';
 import {realpathSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -85,6 +86,8 @@ export function createApp({bodyTimeoutMs=10000}={}) {
    if(url.pathname==='/api/resources'&&await handleResources(req,send)) return;
    if(req.method==='GET' && url.pathname==='/health') return send(200,{status:'ok',...engineInfo});
    if(req.method==='GET' && url.pathname==='/topics') return send(200,{topics});
+   // Historical questions have their own routes and never appear in /bank, /generate or /mock.
+   if(url.pathname==='/historical'||url.pathname==='/historical/sources') return await handleHistorical(req,url,send);
    const view=url.searchParams.get('view')||'solutions';
    if(!['solutions','practice'].includes(view))return send(400,{error:'Use view=practice or view=solutions.'});
    if(req.method==='GET' && url.pathname==='/bank') return send(200,{questions:view==='practice'?questionBank.map(practiceQuestion):questionBank});

@@ -5,11 +5,12 @@
   "type": "module",
   "exports": "./src/index.js",
   "scripts": {
-    "test": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/resources-api.test.js",
+    "test": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/resources-api.test.js test/historical.test.js",
     "start": "node src/server.js",
+    "historical:check": "node scripts/historical/historical-bank.mjs check",
     "build:exact": "node scripts/build-exact.mjs",
     "test:exact": "node --test test/exact-math.test.mjs",
-    "test:all": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/exact-math.test.mjs",
+    "test:all": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/resources-api.test.js test/historical.test.js test/exact-math.test.mjs",
     "resources:refresh": "node scripts/resources/resource-server.mjs refresh --config resources/sources.json --output resources/catalog.json",
     "resources:serve": "node scripts/resources/resource-server.mjs serve --config resources/sources.json --snapshot resources/catalog.json",
     "test:resources": "node --test scripts/resources/resource-catalog.test.mjs && node scripts/resources/check-catalog.mjs"

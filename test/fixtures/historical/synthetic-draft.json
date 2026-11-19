@@ -1,0 +1,9 @@
+{
+  "statement": "SYNTHETIC FIXTURE, not an exam question. The square in [[diagram:square]] has side 1. Show that its diagonal has length the square root of 2.",
+  "diagrams": [
+    {"id": "square", "file": "diagrams/synthetic-square.svg", "digest": "sha256:c9ec0cdd4801003087a394e7dafbaa47dcc67e4fe60018dc9a035a0740d65797", "alt": "A square with side length 1.", "method": "redrawn", "sourcePage": 1}
+  ],
+  "transcribedBy": "Fixture Transcriber",
+  "transcribedOn": "2026-01-10",
+  "notes": "Synthetic test data."
+}
