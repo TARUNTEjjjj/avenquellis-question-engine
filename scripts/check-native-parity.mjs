@@ -122,4 +122,26 @@ compare(['mock', '--topic', '', '--count', '3'], generateMock({topic: '', count:
 reject(['question', '--exam', 'ıſı']);
 assert.throws(() => generateQuestion({exam: 'ıſı'}), /Unknown exam: ıſı/);
 compare(['mock', '--exam', 'isi'], generateMock({exam: 'isi'}));
-console.log(`Verified ${comparisons} native JSON comparisons across every bank family, chapter, track and mock size.`);
+
+function verifyAnalysis(args, expectedQuestions, expectedKind) {
+  const run = raw(args);
+  assert.equal(run.status, 0, run.stderr || String(run.error));
+  const payload = JSON.parse(run.stdout);
+  assert.equal(payload.kind, expectedKind);
+  assert.equal(payload.questionCount, expectedQuestions.length);
+  assert.equal(payload.totalMarks, expectedQuestions.reduce((acc, q) => acc + q.maxMarks, 0));
+  assert.equal(payload.replayVerified, true);
+  assert.ok(payload.normalizedTopicEntropy >= 0 && payload.normalizedTopicEntropy <= 1.0001);
+  const byTopic = {};
+  for (const q of expectedQuestions) byTopic[q.topic] = (byTopic[q.topic] || 0) + 1;
+  assert.deepEqual(payload.topics, byTopic);
+  comparisons++;
+}
+
+verifyAnalysis(['analyze-bank'], questionBank, 'bank');
+verifyAnalysis(['analyze', '--exam', 'ISI', '--count', '18', '--seed', 'telemetry-check'],
+  generateMock({exam: 'ISI', count: 18, seed: 'telemetry-check'}).questions, 'mock');
+verifyAnalysis(['analyze', '--exam', 'CMI', '--difficulty', 'olympiad', '--count', '12', '--seed-number', '77'],
+  generateMock({exam: 'CMI', difficulty: 'olympiad', count: 12, seed: 77}).questions, 'mock');
+
+console.log(`Verified ${comparisons} native JSON comparisons across every bank family, chapter, track, telemetry analysis and mock size.`);

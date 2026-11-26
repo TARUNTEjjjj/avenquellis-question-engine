@@ -5,7 +5,7 @@
   "type": "module",
   "exports": "./src/index.js",
   "scripts": {
-    "test": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/resources-api.test.js test/historical.test.js",
+    "test": "node --test test/engine.test.js test/advanced-templates.test.js test/server.test.js test/resources-api.test.js test/historical.test.js test/property-fuzz.test.js",
     "start": "node src/server.js",
     "historical:check": "node scripts/historical/historical-bank.mjs check",
     "build:exact": "node scripts/build-exact.mjs",
